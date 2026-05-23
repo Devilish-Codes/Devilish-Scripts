@@ -56,8 +56,9 @@ setreadonly(mt, false)
 mt.__namecall = function(self, ...)
     local method = getnamecallmethod()
 
-    if spyEnabled and not IGNORE[self.Name] then
-        if method == "FireServer" and self:IsA("RemoteEvent") then
+    if spyEnabled then
+        pcall(function()
+            if IGNORE[self.Name] then return end
             local args = {...}
             local parts = {}
             for _, v in ipairs(args) do
@@ -68,21 +69,11 @@ mt.__namecall = function(self, ...)
                     table.insert(parts, "[" .. t .. "]")
                 end
             end
-            warn("[Fire] " .. self.Name .. "(" .. table.concat(parts, ", ") .. ")")
-
-        elseif method == "InvokeServer" and self:IsA("RemoteFunction") then
-            local args = {...}
-            local parts = {}
-            for _, v in ipairs(args) do
-                local t = typeof(v)
-                if t == "string" or t == "number" or t == "boolean" then
-                    table.insert(parts, tostring(v))
-                else
-                    table.insert(parts, "[" .. t .. "]")
-                end
+            local line = "[" .. method .. "] " .. self.Name .. "(" .. table.concat(parts, ", ") .. ")"
+            if method == "FireServer" or method == "InvokeServer" then
+                warn(line)
             end
-            warn("[Invoke] " .. self.Name .. "(" .. table.concat(parts, ", ") .. ")")
-        end
+        end)
     end
 
     return oldNamecall(self, ...)
