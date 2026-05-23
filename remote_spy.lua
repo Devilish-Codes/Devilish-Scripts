@@ -1,109 +1,61 @@
--- Remote Spy | Paste directly into Delta
--- Play the game normally for 30-60 seconds, then check clipboard for captured calls
+-- Remote Spy | Delta Executor
+-- Hooks ALL remote calls via metatable (works in Delta)
+-- Press F8 in-game to copy the log to clipboard
 
 local log = {}
-local RS = game:GetService("ReplicatedStorage")
-local remoteFolder = RS:FindFirstChild("RemoteEvents")
-if not remoteFolder then
-    warn("[RemoteSpy] Could not find RemoteEvents folder")
-    return
-end
 
-local function serialize(val)
-    local t = typeof(val)
-    if t == "string"  then return '"' .. val .. '"' end
-    if t == "number"  then return tostring(val) end
-    if t == "boolean" then return tostring(val) end
-    if t == "nil"     then return "nil" end
-    if t == "table"   then
+local mt = getrawmetatable(game)
+local oldNamecall = mt.__namecall
+setreadonly(mt, false)
+
+mt.__namecall = function(self, ...)
+    local method = getnamecallmethod()
+
+    if method == "FireServer" and self:IsA("RemoteEvent") then
+        local args = {...}
         local parts = {}
-        for k, v in pairs(val) do
-            table.insert(parts, tostring(k) .. "=" .. serialize(v))
+        for _, v in ipairs(args) do
+            local t = typeof(v)
+            if t == "string" or t == "number" or t == "boolean" then
+                table.insert(parts, tostring(v))
+            else
+                table.insert(parts, "[" .. t .. "]")
+            end
         end
-        return "{" .. table.concat(parts, ", ") .. "}"
+        local line = "[FireServer] " .. self.Name .. "(" .. table.concat(parts, ", ") .. ")"
+        table.insert(log, line)
+        print(line)
+
+    elseif method == "InvokeServer" and self:IsA("RemoteFunction") then
+        local args = {...}
+        local parts = {}
+        for _, v in ipairs(args) do
+            local t = typeof(v)
+            if t == "string" or t == "number" or t == "boolean" then
+                table.insert(parts, tostring(v))
+            else
+                table.insert(parts, "[" .. t .. "]")
+            end
+        end
+        local line = "[InvokeServer] " .. self.Name .. "(" .. table.concat(parts, ", ") .. ")"
+        table.insert(log, line)
+        print(line)
     end
-    return "[" .. t .. "]"
+
+    return oldNamecall(self, ...)
 end
 
-local hooked = 0
+setreadonly(mt, true)
 
-for _, remote in ipairs(remoteFolder:GetChildren()) do
-    if remote:IsA("RemoteEvent") then
-        local name = remote.Name
-        local orig = remote.FireServer
-        remote.FireServer = function(self, ...)
-            local args = {...}
-            local parts = {}
-            for _, v in ipairs(args) do
-                table.insert(parts, serialize(v))
-            end
-            local line = name .. "(" .. table.concat(parts, ", ") .. ")"
-            table.insert(log, line)
-            print("[Spy] " .. line)
-            return orig(self, ...)
+print("[RemoteSpy] Active. Play normally, then press F8 to copy the log.")
+
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.F8 then
+        if #log == 0 then
+            print("[RemoteSpy] No calls captured yet.")
+        else
+            setclipboard(table.concat(log, "\n"))
+            print("[RemoteSpy] Copied " .. #log .. " calls to clipboard.")
         end
-        hooked = hooked + 1
-    elseif remote:IsA("RemoteFunction") then
-        local name = remote.Name
-        local orig = remote.InvokeServer
-        remote.InvokeServer = function(self, ...)
-            local args = {...}
-            local parts = {}
-            for _, v in ipairs(args) do
-                table.insert(parts, serialize(v))
-            end
-            local line = name .. ":Invoke(" .. table.concat(parts, ", ") .. ")"
-            table.insert(log, line)
-            print("[Spy] " .. line)
-            return orig(self, ...)
-        end
-        hooked = hooked + 1
     end
-end
-
-print("[RemoteSpy] Hooked " .. hooked .. " remotes. Play normally, then press the copy button.")
-
--- GUI: simple copy button in corner
-local guiParent = (type(gethui) == "function" and gethui()) or game:GetService("CoreGui")
-
-local old = guiParent:FindFirstChild("RemoteSpy")
-if old then old:Destroy() end
-
-local gui = Instance.new("ScreenGui")
-gui.Name = "RemoteSpy"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.Parent = guiParent
-
-local btn = Instance.new("TextButton")
-btn.Size             = UDim2.new(0, 160, 0, 36)
-btn.Position         = UDim2.new(0, 10, 0, 10)
-btn.BackgroundColor3 = Color3.fromRGB(0, 140, 60)
-btn.BorderSizePixel  = 0
-btn.TextColor3       = Color3.fromRGB(255, 255, 255)
-btn.Text             = "Copy Log (" .. #log .. " calls)"
-btn.Font             = Enum.Font.GothamBold
-btn.TextSize         = 13
-btn.Parent           = gui
-
-Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-
--- update button label every second
-task.spawn(function()
-    while gui.Parent do
-        btn.Text = "Copy Log (" .. #log .. " calls)"
-        task.wait(1)
-    end
-end)
-
-btn.MouseButton1Click:Connect(function()
-    if #log == 0 then
-        btn.Text = "No calls yet!"
-    else
-        setclipboard(table.concat(log, "\n"))
-        btn.Text = "Copied " .. #log .. " calls!"
-    end
-    task.delay(2, function()
-        btn.Text = "Copy Log (" .. #log .. " calls)"
-    end)
 end)
