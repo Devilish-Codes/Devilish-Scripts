@@ -12,7 +12,7 @@ task.spawn(function()
     end
 end)
 local hitRE,gunRF,shotCount=nil,nil,0
-local S={gun=false,roll=false,afk=false}
+local S={gun=false,roll=false,afk=false,collect=false}
 local rfs={}
 
 task.spawn(function()
@@ -111,7 +111,7 @@ end
 stopBtn.MouseButton1Click:Connect(function()
     for k in pairs(S)do S[k]=false end for _,rf in ipairs(rfs)do rf()end task.wait(0.1) g:Destroy()
 end)
-T("Auto Gun","gun"); T("Auto Roll","roll"); T("Anti-AFK","afk")
+T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
 pan.Size=UDim2.new(0,220,0,yP+6)
 
 task.spawn(function()
@@ -148,6 +148,38 @@ task.spawn(function()
             task.wait(0.1)
             VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
         end) end
+    end
+end)
+
+task.spawn(function()
+    local DROP_FOLDERS={"Drops","Fruits","Items","Pickups","Collectibles","GoopDrops","WorldItems"}
+    while true do
+        if S.collect then
+            local char=PL.Character
+            local hrp=char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                -- method 1: fire any pickup/collect ProximityPrompts in workspace
+                for _,v in ipairs(workspace:GetDescendants()) do
+                    if v:IsA("ProximityPrompt") and v.Enabled then
+                        local a=v.ActionText:lower()
+                        if a=="" or a:find("pick") or a:find("collect") or a:find("take") or a:find("grab") then
+                            pcall(fireproximityprompt,v)
+                        end
+                    end
+                end
+                -- method 2: firetouchinterest on known drop folder children
+                for _,fname in ipairs(DROP_FOLDERS) do
+                    local f=workspace:FindFirstChild(fname)
+                    if f then
+                        for _,item in ipairs(f:GetChildren()) do
+                            local part=item:IsA("BasePart") and item or item:FindFirstChildOfClass("BasePart")
+                            if part then pcall(firetouchinterest,part,hrp,0) end
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(0.5)
     end
 end)
 
