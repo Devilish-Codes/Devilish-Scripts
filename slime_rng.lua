@@ -249,25 +249,25 @@ task.spawn(function()
             if hrp and enemyPos and #slimeIDs>0 then
                 local savedCF=hrp.CFrame
                 local cam=workspace.CurrentCamera
-                local savedCamCF=cam.CFrame
-                local savedCamType=cam.CameraType
-                -- freeze camera so player doesn't see teleport
-                cam.CameraType=Enum.CameraType.Scriptable
-                cam.CFrame=savedCamCF
+                local lockedCF=cam.CFrame
+                local RS2=game:GetService("RunService")
+                -- hold camera in place every frame during teleport
+                local camConn=RS2.RenderStepped:Connect(function() cam.CFrame=lockedCF end)
                 -- teleport to enemy
                 hrp.CFrame=CFrame.new(enemyPos+Vector3.new(0,3,0))
-                task.wait(0.1)
+                task.wait()
                 -- unequip all slots
                 for i=1,8 do pcall(function()invRF:InvokeServer("requestUnequip",i)end) end
-                task.wait(0.1)
+                task.wait()
                 -- re-equip each slime (spawns at player feet = on enemy)
                 for _,id in ipairs(slimeIDs) do
                     pcall(function()invRF:InvokeServer("requestEquip",id)end)
                 end
-                task.wait(0.1)
-                -- teleport player back and restore camera
+                task.wait()
+                -- teleport back and release camera
                 hrp.CFrame=savedCF
-                cam.CameraType=savedCamType
+                task.wait()
+                camConn:Disconnect()
             end
         end
         task.wait(0.1)
