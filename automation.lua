@@ -36,7 +36,7 @@ T("Upgrades","up"); T("Beast Stage","bs"); T("Mark Fire","mf"); T("Gain Miasma",
 local sep=Instance.new("Frame") sep.Size=UDim2.new(1,-10,0,1) sep.Position=UDim2.new(0,5,0,yP+3) sep.BackgroundColor3=Color3.fromRGB(55,55,55) sep.BorderSizePixel=0 sep.Parent=pan yP=yP+10
 T("TP Miasma","tm"); T("TP Ash","ta"); T("TP Manual","tn"); T("TP Beast","tb")
 pan.Size=UDim2.new(0,200,0,yP+6)
-local UP={"MiasmaMiasmaMultiplier","MiasmaLuckMultiplier","MiasmaQiMultiplier"}
+local UP={"MiasmaMiasmaMultiplier","MiasmaLuckMultipleir","MiasmaQiMultiplier"}
 task.spawn(function()while true do if S.up then for _,id in ipairs(UP)do F("PurchaseUpgrade",id,true) task.wait(0.05)end end task.wait(1)end end)
 task.spawn(function()while true do if S.bs then F("SetBeastStage",200)end task.wait(5)end end)
 task.spawn(function()while true do if S.mf then F("MiasmaMarkPress") F("AshMarkPress") F("CultivationManualRerollPulse")end task.wait(0.5)end end)
