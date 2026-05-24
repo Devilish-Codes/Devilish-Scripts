@@ -210,37 +210,36 @@ task.spawn(function()
     end
 end)
 
--- slime tele: teleport player slimes (workspace.GameplayN.Slimes) onto current gun target
-task.spawn(function()
-    while true do
-        if S.slimes and gunTarget then
-            local tp=nil
-            for _,v in ipairs(workspace:GetChildren()) do
-                if v.Name:match("^Gameplay%d+$") then
-                    local ef=v:FindFirstChild("Enemies")
-                    if ef then
-                        local em=ef:FindFirstChild(tostring(gunTarget))
-                        if em then tp=em:IsA("BasePart") and em or em:FindFirstChildOfClass("BasePart") end
-                    end
+-- slime tele: force player slimes onto gun target every frame (overcomes server replication)
+local RS2=game:GetService("RunService")
+RS2.RenderStepped:Connect(function()
+    if not S.slimes or not gunTarget then return end
+    local dest=nil
+    for _,v in ipairs(workspace:GetChildren()) do
+        if v.Name:match("^Gameplay%d+$") then
+            local ef=v:FindFirstChild("Enemies")
+            if ef then
+                local em=ef:FindFirstChild(tostring(gunTarget))
+                if em then
+                    local rp=em:FindFirstChild("RootPart")
+                    if rp then dest=rp.CFrame+Vector3.new(0,2,0) end
                 end
             end
-            if tp then
-                local dest=tp.CFrame+Vector3.new(0,2,0)
-                for _,v in ipairs(workspace:GetChildren()) do
-                    if v.Name:match("^Gameplay%d+$") then
-                        local sf=v:FindFirstChild("Slimes")
-                        if sf then
-                            for _,m in ipairs(sf:GetChildren()) do
-                                if m:IsA("Model") then
-                                    pcall(function()m:PivotTo(dest)end)
-                                end
-                            end
-                        end
+        end
+    end
+    if not dest then return end
+    for _,v in ipairs(workspace:GetChildren()) do
+        if v.Name:match("^Gameplay%d+$") then
+            local sf=v:FindFirstChild("Slimes")
+            if sf then
+                for _,m in ipairs(sf:GetChildren()) do
+                    if m:IsA("Model") then
+                        local rp=m:FindFirstChild("RootPart")
+                        if rp then pcall(function()rp.CFrame=dest end) end
                     end
                 end
             end
         end
-        task.wait(0.1)
     end
 end)
 
