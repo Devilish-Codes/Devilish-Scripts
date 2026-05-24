@@ -14,11 +14,11 @@ task.spawn(function()
 end)
 
 local hitRE,gunRF,shotCount=nil,nil,0
-local S={gun=false,roll=false,collect=false}
+local S={gun=false,roll=false,collect=false,tele=false}
 local rfs={}
 
 local SAVE_FILE="slime_rng_state.txt"
-local SKEYS={"gun","roll","collect"}
+local SKEYS={"gun","roll","collect","tele"}
 local function saveState()
     local parts={}
     for _,k in ipairs(SKEYS) do parts[#parts+1]=k.."="..(S[k] and "1" or "0") end
@@ -33,6 +33,19 @@ local function loadState()
     end
 end
 loadState()
+
+local savedPos=nil
+local POS_FILE="slime_rng_pos.txt"
+local function savePosFile()
+    if savedPos then pcall(writefile,POS_FILE,savedPos.X..","..savedPos.Y..","..savedPos.Z) end
+end
+local function loadPosFile()
+    local ok,d=pcall(readfile,POS_FILE)
+    if not ok or not d then return end
+    local x,y,z=d:match("^([-%.%d]+),([-%.%d]+),([-%.%d]+)$")
+    if x then savedPos=Vector3.new(tonumber(x),tonumber(y),tonumber(z)) end
+end
+loadPosFile()
 
 task.spawn(function()
     task.wait(1)
@@ -105,7 +118,8 @@ end
 stopBtn.MouseButton1Click:Connect(function()
     for k in pairs(S)do S[k]=false end for _,rf in ipairs(rfs)do rf()end task.wait(0.1) g:Destroy()
 end)
-T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect")
+T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Auto Return","tele")
+local savePosBtn=Instance.new("TextButton") savePosBtn.Size=UDim2.new(1,-10,0,24) savePosBtn.Position=UDim2.new(0,5,0,yC) savePosBtn.BackgroundColor3=Color3.fromRGB(35,55,80) savePosBtn.TextColor3=Color3.fromRGB(120,180,255) savePosBtn.Text="Save Position" savePosBtn.TextSize=12 savePosBtn.Font=Enum.Font.Gotham savePosBtn.BorderSizePixel=0 savePosBtn.Parent=ctrlFrame Instance.new("UICorner",savePosBtn).CornerRadius=UDim.new(0,4) yC=yC+28
 ctrlFrame.Size=UDim2.new(1,0,0,yC+4)
 
 -- stats frame (tab 2)
@@ -153,6 +167,30 @@ task.spawn(function()
             if gun and gun.Parent~=char then gun.Parent=char end
         end
         task.wait(0.1)
+    end
+end)
+
+-- save position button
+savePosBtn.MouseButton1Click:Connect(function()
+    local char=PL.Character
+    local hrp=char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        savedPos=hrp.Position+Vector3.new(0,1,0)
+        savePosFile()
+        savePosBtn.Text="Saved!"
+        task.delay(1.5,function()savePosBtn.Text="Save Position"end)
+    end
+end)
+
+-- auto return loop
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if S.tele and savedPos then
+            local char=PL.Character
+            local hrp=char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then pcall(function()hrp.CFrame=CFrame.new(savedPos)end) end
+        end
     end
 end)
 
