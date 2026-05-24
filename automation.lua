@@ -40,7 +40,7 @@ local UP={"MiasmaMiasmaMultiplier","MiasmaLuckMultiplier","MiasmaQiMultiplier"}
 task.spawn(function()while true do if S.up then for _,id in ipairs(UP)do F("PurchaseUpgrade",id,true) task.wait(0.05)end end task.wait(1)end end)
 task.spawn(function()while true do if S.bs then F("SetBeastStage",200)end task.wait(5)end end)
 task.spawn(function()while true do if S.mf then F("MiasmaMarkPress") F("AshMarkPress") F("CultivationManualRerollPulse")end task.wait(0.5)end end)
-task.spawn(function()while true do if S.gm then F("GainMiasma")end task.wait(0.05)end end)
+task.spawn(function()while true do if S.gm then F("GainMiasma")end task.wait()end end)
 local ch=PL.Character or PL.CharacterAdded:Wait()
 local hr=ch:WaitForChild("HumanoidRootPart")
 local TP={{k="tm",p=Vector3.new(402.5,10.5,549),d=6},{k="ta",p=Vector3.new(488,10.5,532.3),d=6},{k="tn",p=Vector3.new(390.6,12,598.2),d=6},{k="tb",p=Vector3.new(172.1,18.5,-31.3),d=15}}
