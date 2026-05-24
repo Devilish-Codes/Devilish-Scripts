@@ -354,14 +354,19 @@ local function vuClick()
     end)
 end
 PL.Idled:Connect(vuClick)
--- fallback every 14 min (fires before the 15-min game kick)
-task.spawn(function()while true do task.wait(840) vuClick() end end)
--- game-specific: jump every 14 min alongside the VU click
+-- fallback VU click every 10 min
+task.spawn(function()while true do task.wait(600) vuClick() end end)
+-- game-specific: teleport away and back every 10 min to force position change
 task.spawn(function()
-    while true do task.wait(840)
+    while true do task.wait(600)
         local char=PL.Character
-        local hum=char and char:FindFirstChildOfClass("Humanoid")
-        if hum then pcall(function()hum.Jump=true end) end
+        local hrp=char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local origin=hrp.CFrame
+            pcall(function()hrp.CFrame=origin*CFrame.new(10,0,0)end)
+            task.wait(2)
+            pcall(function()hrp.CFrame=origin end)
+        end
     end
 end)
 
