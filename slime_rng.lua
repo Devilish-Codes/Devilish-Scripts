@@ -125,12 +125,13 @@ task.spawn(function()
     end
 end)
 
--- reward tracker
-local goopTotal,coinTotal,rewardStart=0,0,nil
-task.spawn(function()
-    while not hitRE do task.wait(0.5) end
-    rewardStart=tick()
-    hitRE.OnClientEvent:Connect(function(a1,a2,a3)
+-- reward tracker: hook ALL Gameplay+N RemoteEvents (rewards on @0.2.1, gun on @0.3.1)
+local goopTotal,coinTotal,rewardStart=0,0,tick()
+local hookedREs={}
+local function hookRE(re)
+    if hookedREs[re] then return end
+    hookedREs[re]=true
+    re.OnClientEvent:Connect(function(a1,a2,a3)
         if a1=="goopRewarded" then
             if type(a2)=="number" then goopTotal=goopTotal+a2
             elseif type(a3)=="number" then goopTotal=goopTotal+a3 end
@@ -139,10 +140,24 @@ task.spawn(function()
             elseif type(a3)=="number" then coinTotal=coinTotal+a3 end
         elseif type(a1)=="number" and a2=="goop" then
             goopTotal=goopTotal+a1
-        elseif type(a1)=="number" and a1>1000 and type(a2)=="number" then
-            goopTotal=goopTotal+a1
         end
     end)
+end
+task.spawn(function()
+    -- hook all existing Gameplay+N RemoteEvents
+    for _,v in ipairs(RS:GetDescendants()) do
+        if v:IsA("RemoteEvent") and v.Parent and v.Parent.Name:match("^Gameplay%d+$") then
+            hookRE(v)
+        end
+    end
+    -- also hook any added later
+    RS.DescendantAdded:Connect(function(v)
+        if v:IsA("RemoteEvent") and v.Parent and v.Parent.Name:match("^Gameplay%d+$") then
+            hookRE(v)
+        end
+    end)
+end)
+task.spawn(function()
     local function fmt(n)
         if n>=1e9 then return string.format("%.1fB",n/1e9)
         elseif n>=1e6 then return string.format("%.1fM",n/1e6)
