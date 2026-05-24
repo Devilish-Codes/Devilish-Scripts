@@ -103,34 +103,35 @@ end)
 T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
 pan.Size=UDim2.new(0,220,0,yP+6)
 
--- gun loop: 50 Hz outer tick, one coroutine per enemy doing sync try→confirm
+-- gun loop: cycles enemies one at a time, no artificial wait in hot path
+-- InvokeServer naturally throttles to server response rate
+local eidx=1
 task.spawn(function()
     while true do
-        if hitRE then
+        if hitRE and S.gun then
             local char=PL.Character
             if char then
                 local gun=char:FindFirstChild("SlimeGun") or PL.Backpack:FindFirstChild("SlimeGun")
                 if gun and gun.Parent~=char then gun.Parent=char end
             end
-            if S.gun and #eids>0 then
-                local snap=eids
-                for _,id in ipairs(snap) do
-                    local eid=id
-                    task.spawn(function()
-                        if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",eid)end) end
-                        shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,eid)
-                    end)
-                end
-                lgun.Text="FIRE "..#snap.."t" lgun.TextColor3=Color3.fromRGB(80,230,80)
-            elseif S.gun then
-                lgun.Text="FIRE 0t" lgun.TextColor3=Color3.fromRGB(230,180,80)
+            if #eids>0 then
+                if eidx>#eids then eidx=1 end
+                local id=eids[eidx] eidx=eidx+1
+                if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",id)end) end
+                shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id)
+                lgun.Text="FIRE "..#eids.."t" lgun.TextColor3=Color3.fromRGB(80,230,80)
             else
-                lgun.Text="RDY "..#eids.."t" lgun.TextColor3=Color3.fromRGB(160,220,160)
+                lgun.Text="FIRE 0t" lgun.TextColor3=Color3.fromRGB(230,180,80)
+                task.wait(0.1)
             end
         else
-            lgun.Text="NO_RE E:"..#eids lgun.TextColor3=Color3.fromRGB(230,80,80)
+            if hitRE then
+                lgun.Text="RDY "..#eids.."t" lgun.TextColor3=Color3.fromRGB(160,220,160)
+            else
+                lgun.Text="NO_RE E:"..#eids lgun.TextColor3=Color3.fromRGB(230,80,80)
+            end
+            task.wait(0.1)
         end
-        task.wait(0.02)
     end
 end)
 
