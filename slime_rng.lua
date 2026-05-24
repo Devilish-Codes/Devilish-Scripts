@@ -89,31 +89,57 @@ UIS.InputEnded:Connect(function(i)if i.UserInputType==Enum.UserInputType.MouseBu
 minBtn.MouseButton1Click:Connect(function()pan.Visible=false bubble.Visible=true end)
 bubble.MouseButton1Click:Connect(function()bubble.Visible=false pan.Visible=true end)
 
-local yP=34
-local function mkStat(txt)
-    local l=Instance.new("TextLabel") l.Size=UDim2.new(1,-10,0,20) l.Position=UDim2.new(0,5,0,yP) l.BackgroundColor3=Color3.fromRGB(28,28,28) l.TextColor3=Color3.fromRGB(160,220,160) l.Text=txt l.TextSize=11 l.Font=Enum.Font.Gotham l.BorderSizePixel=0 l.TextXAlignment=Enum.TextXAlignment.Left l.Parent=pan
-    local p=Instance.new("UIPadding",l) p.PaddingLeft=UDim.new(0,6) Instance.new("UICorner",l).CornerRadius=UDim.new(0,4) yP=yP+23 return l
-end
-local sep=Instance.new("Frame") sep.Size=UDim2.new(1,-10,0,1) sep.Position=UDim2.new(0,5,0,yP+3) sep.BackgroundColor3=Color3.fromRGB(55,55,55) sep.BorderSizePixel=0 sep.Parent=pan yP=yP+10
+-- tab buttons
+local tabCtrl=Instance.new("TextButton") tabCtrl.Size=UDim2.new(0.5,-7,0,24) tabCtrl.Position=UDim2.new(0,5,0,34) tabCtrl.TextSize=11 tabCtrl.Font=Enum.Font.GothamBold tabCtrl.BorderSizePixel=0 tabCtrl.Text="Controls" tabCtrl.Parent=pan Instance.new("UICorner",tabCtrl).CornerRadius=UDim.new(0,4)
+local tabStats=Instance.new("TextButton") tabStats.Size=UDim2.new(0.5,-7,0,24) tabStats.Position=UDim2.new(0.5,2,0,34) tabStats.TextSize=11 tabStats.Font=Enum.Font.GothamBold tabStats.BorderSizePixel=0 tabStats.Text="Stats" tabStats.Parent=pan Instance.new("UICorner",tabStats).CornerRadius=UDim.new(0,4)
 
+-- controls frame (tab 1)
+local ctrlFrame=Instance.new("Frame") ctrlFrame.Size=UDim2.new(1,0,0,10) ctrlFrame.Position=UDim2.new(0,0,0,62) ctrlFrame.BackgroundTransparency=1 ctrlFrame.BorderSizePixel=0 ctrlFrame.Parent=pan
+local yC=4
+local sep=Instance.new("Frame") sep.Size=UDim2.new(1,-10,0,1) sep.Position=UDim2.new(0,5,0,yC) sep.BackgroundColor3=Color3.fromRGB(55,55,55) sep.BorderSizePixel=0 sep.Parent=ctrlFrame yC=yC+8
 local function T(lbl,key)
-    local b=Instance.new("TextButton") b.Size=UDim2.new(1,-10,0,26) b.Position=UDim2.new(0,5,0,yP) b.BorderSizePixel=0 b.TextSize=12 b.Font=Enum.Font.Gotham b.Parent=pan Instance.new("UICorner",b).CornerRadius=UDim.new(0,4)
+    local b=Instance.new("TextButton") b.Size=UDim2.new(1,-10,0,26) b.Position=UDim2.new(0,5,0,yC) b.BorderSizePixel=0 b.TextSize=12 b.Font=Enum.Font.Gotham b.Parent=ctrlFrame Instance.new("UICorner",b).CornerRadius=UDim.new(0,4)
     local function rf()if S[key]then b.Text=lbl.." ON" b.BackgroundColor3=Color3.fromRGB(25,70,25) b.TextColor3=Color3.fromRGB(80,230,80)else b.Text=lbl.." OFF" b.BackgroundColor3=Color3.fromRGB(70,25,25) b.TextColor3=Color3.fromRGB(230,80,80)end end
-    b.MouseButton1Click:Connect(function()S[key]=not S[key] rf() saveState()end) rf() yP=yP+30 table.insert(rfs,rf)
+    b.MouseButton1Click:Connect(function()S[key]=not S[key] rf() saveState()end) rf() yC=yC+30 table.insert(rfs,rf)
 end
 stopBtn.MouseButton1Click:Connect(function()
     for k in pairs(S)do S[k]=false end for _,rf in ipairs(rfs)do rf()end task.wait(0.1) g:Destroy()
 end)
 T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
+ctrlFrame.Size=UDim2.new(1,0,0,yC+4)
 
-local sep2=Instance.new("Frame") sep2.Size=UDim2.new(1,-10,0,1) sep2.Position=UDim2.new(0,5,0,yP+3) sep2.BackgroundColor3=Color3.fromRGB(55,55,55) sep2.BorderSizePixel=0 sep2.Parent=pan yP=yP+10
-local lGoopKills=mkStat("Goop kills: --")
-local lGoopX2=mkStat("x2 rolls:   --")
-local lGoopMin=mkStat("Goop/min:   --")
-local lCoinMin=mkStat("Coin/min:   --")
-local lSession=mkStat("Session:    0:00")
-local resetBtn=Instance.new("TextButton") resetBtn.Size=UDim2.new(1,-10,0,22) resetBtn.Position=UDim2.new(0,5,0,yP) resetBtn.BackgroundColor3=Color3.fromRGB(40,40,80) resetBtn.TextColor3=Color3.fromRGB(150,150,255) resetBtn.Text="Reset Session" resetBtn.TextSize=11 resetBtn.Font=Enum.Font.Gotham resetBtn.BorderSizePixel=0 resetBtn.Parent=pan Instance.new("UICorner",resetBtn).CornerRadius=UDim.new(0,4) yP=yP+26
-pan.Size=UDim2.new(0,220,0,yP+6)
+-- stats frame (tab 2)
+local statsFrame=Instance.new("Frame") statsFrame.Size=UDim2.new(1,0,0,10) statsFrame.Position=UDim2.new(0,0,0,62) statsFrame.BackgroundTransparency=1 statsFrame.BorderSizePixel=0 statsFrame.Visible=false statsFrame.Parent=pan
+local yS=4
+local function mkStat(txt)
+    local l=Instance.new("TextLabel") l.Size=UDim2.new(1,-10,0,20) l.Position=UDim2.new(0,5,0,yS) l.BackgroundColor3=Color3.fromRGB(28,28,28) l.TextColor3=Color3.fromRGB(160,220,160) l.Text=txt l.TextSize=11 l.Font=Enum.Font.Gotham l.BorderSizePixel=0 l.TextXAlignment=Enum.TextXAlignment.Left l.Parent=statsFrame
+    local p=Instance.new("UIPadding",l) p.PaddingLeft=UDim.new(0,6) Instance.new("UICorner",l).CornerRadius=UDim.new(0,4) yS=yS+23 return l
+end
+local lGoop=mkStat("Goop:     --")
+local lCoin=mkStat("Coin:     --")
+local lGoopMin=mkStat("Goop/min: --")
+local lCoinMin=mkStat("Coin/min: --")
+local lGoopHr=mkStat("Goop/hr:  --")
+local lCoinHr=mkStat("Coin/hr:  --")
+local lGoopDay=mkStat("Goop/day: --")
+local lCoinDay=mkStat("Coin/day: --")
+local lSession=mkStat("Session:  0:00")
+local resetBtn=Instance.new("TextButton") resetBtn.Size=UDim2.new(1,-10,0,22) resetBtn.Position=UDim2.new(0,5,0,yS) resetBtn.BackgroundColor3=Color3.fromRGB(40,40,80) resetBtn.TextColor3=Color3.fromRGB(150,150,255) resetBtn.Text="Reset Session" resetBtn.TextSize=11 resetBtn.Font=Enum.Font.Gotham resetBtn.BorderSizePixel=0 resetBtn.Parent=statsFrame Instance.new("UICorner",resetBtn).CornerRadius=UDim.new(0,4) yS=yS+26
+statsFrame.Size=UDim2.new(1,0,0,yS+4)
+
+-- tab switching
+local function switchTab(t)
+    local onCtrl=(t=="ctrl")
+    ctrlFrame.Visible=onCtrl statsFrame.Visible=not onCtrl
+    tabCtrl.BackgroundColor3=onCtrl and Color3.fromRGB(50,50,70) or Color3.fromRGB(30,30,30)
+    tabCtrl.TextColor3=onCtrl and Color3.fromRGB(220,220,220) or Color3.fromRGB(130,130,130)
+    tabStats.BackgroundColor3=(not onCtrl) and Color3.fromRGB(50,50,70) or Color3.fromRGB(30,30,30)
+    tabStats.TextColor3=(not onCtrl) and Color3.fromRGB(220,220,220) or Color3.fromRGB(130,130,130)
+    pan.Size=UDim2.new(0,220,0,62+(onCtrl and ctrlFrame or statsFrame).Size.Y.Offset+6)
+end
+tabCtrl.MouseButton1Click:Connect(function()switchTab("ctrl")end)
+tabStats.MouseButton1Click:Connect(function()switchTab("stats")end)
+switchTab("ctrl")
 
 -- equip loop
 task.spawn(function()
@@ -161,11 +187,14 @@ task.spawn(function()
     end)
 end)
 task.spawn(function()
+    local sfx={"K","M","B","T","Qa","Qi","Sx","Sp","Oc","No","Dc"}
     local function fmt(n)
-        if n>=1e9 then return string.format("%.1fB",n/1e9)
-        elseif n>=1e6 then return string.format("%.1fM",n/1e6)
-        elseif n>=1e3 then return string.format("%.1fK",n/1e3)
-        else return tostring(math.floor(n)) end
+        if n<1000 then return tostring(math.floor(n)) end
+        local i=math.floor(math.log(n)/math.log(1000))
+        if i<1 then i=1 end
+        if i<=#sfx then return string.format("%.2f%s",n/1000^i,sfx[i]) end
+        local e=math.floor(math.log10(n))
+        return string.format("%.2fe+%d",n/10^e,e)
     end
     local function fmtTime(s)
         local h=math.floor(s/3600) local m=math.floor(s/60)%60 local sc=math.floor(s)%60
@@ -174,11 +203,15 @@ task.spawn(function()
     while true do
         task.wait(1)
         local el=math.max(tick()-rewardStart,1)
-        lGoopKills.Text="Goop: "..fmt(goopTotal)
-        lGoopX2.Text="Coin: "..fmt(coinTotal)
+        lGoop.Text="Goop:     "..fmt(goopTotal)
+        lCoin.Text="Coin:     "..fmt(coinTotal)
         lGoopMin.Text="Goop/min: "..fmt(goopTotal/el*60)
         lCoinMin.Text="Coin/min: "..fmt(coinTotal/el*60)
-        lSession.Text="Session: "..fmtTime(el)
+        lGoopHr.Text="Goop/hr:  "..fmt(goopTotal/el*3600)
+        lCoinHr.Text="Coin/hr:  "..fmt(coinTotal/el*3600)
+        lGoopDay.Text="Goop/day: "..fmt(goopTotal/el*86400)
+        lCoinDay.Text="Coin/day: "..fmt(coinTotal/el*86400)
+        lSession.Text="Session:  "..fmtTime(el)
     end
 end)
 
