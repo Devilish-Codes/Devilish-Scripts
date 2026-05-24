@@ -1,7 +1,16 @@
 local RS=game:GetService("ReplicatedStorage")
 local UIS=game:GetService("UserInputService")
 local PL=game:GetService("Players").LocalPlayer
-local rollRF=RS:WaitForChild("RollService"):WaitForChild("RemoteFunction")
+local rollRF=nil
+task.spawn(function()
+    for _=1,20 do
+        for _,v in ipairs(RS:GetDescendants()) do
+            if v.Name=="RollService" and v:IsA("Folder") then
+                local r=v:FindFirstChildOfClass("RemoteFunction") if r then rollRF=r return end
+            end
+        end task.wait(0.5)
+    end
+end)
 local hitRE,shotCount=nil,0
 local S={gun=false,roll=false,afk=false}
 local rfs={}
@@ -105,7 +114,7 @@ end)
 
 task.spawn(function()
     while true do
-        if S.roll then pcall(function()rollRF:InvokeServer("requestRoll")end)
+        if S.roll and rollRF then pcall(function()rollRF:InvokeServer("requestRoll")end)
         else task.wait(0.1)end
     end
 end)
