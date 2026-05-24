@@ -231,8 +231,9 @@ task.spawn(function()
                         local sf=v:FindFirstChild("Slimes")
                         if sf then
                             for _,m in ipairs(sf:GetChildren()) do
-                                local pp=m:IsA("BasePart") and m or (m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildOfClass("BasePart")))
-                                if pp then pcall(function()pp.CFrame=dest end) end
+                                if m:IsA("Model") then
+                                    pcall(function()m:PivotTo(dest)end)
+                                end
                             end
                         end
                     end
