@@ -71,20 +71,6 @@ task.spawn(function()
     end
 end)
 
-local goopGet=nil
-task.spawn(function()
-    task.wait(5)
-    for _,v in ipairs(PL:GetDescendants()) do
-        if (v:IsA("NumberValue") or v:IsA("IntValue") or v:IsA("IntConstrainedValue")) and v.Name:lower():find("goop") then
-            goopGet=function() return v.Value end return
-        end
-    end
-    for k,v in pairs(PL:GetAttributes()) do
-        if type(v)=="number" and k:lower():find("goop") then
-            goopGet=function() return PL:GetAttribute(k) end return
-        end
-    end
-end)
 
 local g=Instance.new("ScreenGui") g.Name="SlimeGui" g.ResetOnSpawn=false
 pcall(function()g.Parent=gethui()end)
@@ -108,10 +94,6 @@ local function mkStat(txt)
     local l=Instance.new("TextLabel") l.Size=UDim2.new(1,-10,0,20) l.Position=UDim2.new(0,5,0,yP) l.BackgroundColor3=Color3.fromRGB(28,28,28) l.TextColor3=Color3.fromRGB(160,220,160) l.Text=txt l.TextSize=11 l.Font=Enum.Font.Gotham l.BorderSizePixel=0 l.TextXAlignment=Enum.TextXAlignment.Left l.Parent=pan
     local p=Instance.new("UIPadding",l) p.PaddingLeft=UDim.new(0,6) Instance.new("UICorner",l).CornerRadius=UDim.new(0,4) yP=yP+23 return l
 end
-local lpm=mkStat("Goop/min:  --")
-local lph=mkStat("Goop/hr:   --")
-local lpd=mkStat("Goop/day:  --")
-local lgun=mkStat("Gun: --")
 local sep=Instance.new("Frame") sep.Size=UDim2.new(1,-10,0,1) sep.Position=UDim2.new(0,5,0,yP+3) sep.BackgroundColor3=Color3.fromRGB(55,55,55) sep.BorderSizePixel=0 sep.Parent=pan yP=yP+10
 
 local function T(lbl,key)
@@ -125,19 +107,14 @@ end)
 T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
 pan.Size=UDim2.new(0,220,0,yP+6)
 
--- equip + status
+-- equip loop
 task.spawn(function()
     while true do
-        if hitRE then
-            local char=PL.Character
-            if char then
-                local gun=char:FindFirstChild("SlimeGun") or PL.Backpack:FindFirstChild("SlimeGun")
-                if gun and gun.Parent~=char then gun.Parent=char end
-            end
-            if S.gun and #eids>0 then lgun.Text="FIRE "..#eids.."t" lgun.TextColor3=Color3.fromRGB(80,230,80)
-            elseif S.gun then lgun.Text="FIRE 0t" lgun.TextColor3=Color3.fromRGB(230,180,80)
-            else lgun.Text="RDY "..#eids.."t" lgun.TextColor3=Color3.fromRGB(160,220,160) end
-        else lgun.Text="NO_RE E:"..#eids lgun.TextColor3=Color3.fromRGB(230,80,80) end
+        local char=PL.Character
+        if char then
+            local gun=char:FindFirstChild("SlimeGun") or PL.Backpack:FindFirstChild("SlimeGun")
+            if gun and gun.Parent~=char then gun.Parent=char end
+        end
         task.wait(0.1)
     end
 end)
@@ -222,21 +199,3 @@ task.spawn(function()
 end)
 
 
-task.spawn(function()
-    local function fmt(n)
-        if n>=1e9 then return string.format("%.1fB",n/1e9) elseif n>=1e6 then return string.format("%.1fM",n/1e6) elseif n>=1e3 then return string.format("%.1fK",n/1e3) else return tostring(math.floor(n))end
-    end
-    local tries=0 while not goopGet and tries<40 do task.wait(1) tries=tries+1 end
-    if not goopGet then lpm.Text="Goop/min: no source" return end
-    local base=goopGet() local t0=tick()
-    while true do
-        task.wait(1)
-        local cur=goopGet() local el=tick()-t0
-        if el>=10 then
-            local ps=(cur-base)/el
-            lpm.Text="Goop/min:  "..fmt(ps*60)
-            lph.Text="Goop/hr:   "..fmt(ps*3600)
-            lpd.Text="Goop/day:  "..fmt(ps*86400)
-        end
-    end
-end)
