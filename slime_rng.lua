@@ -14,11 +14,11 @@ task.spawn(function()
 end)
 
 local hitRE,gunRF,shotCount=nil,nil,0
-local S={gun=false,roll=false,afk=false,collect=false}
+local S={gun=false,roll=false,collect=false}
 local rfs={}
 
 local SAVE_FILE="slime_rng_state.txt"
-local SKEYS={"gun","roll","afk","collect"}
+local SKEYS={"gun","roll","collect"}
 local function saveState()
     local parts={}
     for _,k in ipairs(SKEYS) do parts[#parts+1]=k.."="..(S[k] and "1" or "0") end
@@ -105,7 +105,7 @@ end
 stopBtn.MouseButton1Click:Connect(function()
     for k in pairs(S)do S[k]=false end for _,rf in ipairs(rfs)do rf()end task.wait(0.1) g:Destroy()
 end)
-T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
+T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect")
 ctrlFrame.Size=UDim2.new(1,0,0,yC+4)
 
 -- stats frame (tab 2)
@@ -247,11 +247,9 @@ end)
 -- anti-AFK: right-click via VirtualUser on Idled event (resets idle timer before kick)
 local VU=game:GetService("VirtualUser")
 PL.Idled:Connect(function()
-    if S.afk then
-        VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-        task.wait(1)
-        VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-    end
+    VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
 end)
 
 -- auto collect: live ProximityPrompt cache via events (no GetDescendants polling)
