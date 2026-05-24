@@ -189,7 +189,7 @@ task.spawn(function()
         if S.tele and savedPos then
             local char=PL.Character
             local hrp=char and char:FindFirstChild("HumanoidRootPart")
-            if hrp then pcall(function()hrp.CFrame=CFrame.new(savedPos)end) end
+            if hrp and (hrp.Position-savedPos).Magnitude>20 then pcall(function()hrp.CFrame=CFrame.new(savedPos)end) end
         end
     end
 end)
