@@ -11,7 +11,7 @@ task.spawn(function()
         end task.wait(0.5)
     end
 end)
-local hitRE,shotCount=nil,0
+local hitRE,gunRF,shotCount=nil,nil,0
 local S={gun=false,roll=false,afk=false}
 local rfs={}
 
@@ -23,8 +23,12 @@ task.spawn(function()
             local n=v.Parent and tonumber(v.Parent.Name:match("^Gameplay(%d+)$"))
             if n and n>bestN then hitRE=v bestN=n end
         end
+        if v:IsA("RemoteFunction") and v.Parent and v.Parent.Name=="SlimeGunService" then
+            gunRF=v
+        end
     end
     if hitRE then print("[Slime Auto] Gun remote: Gameplay"..bestN) end
+    if gunRF then print("[Slime Auto] SlimeGunService RF found") end
 end)
 
 local eids={}
@@ -114,7 +118,10 @@ task.spawn(function()
     while true do
         if S.gun then
             if hitRE then
-                for _,id in ipairs(eids) do shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id) end
+                for _,id in ipairs(eids) do
+                    if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",id)end) end
+                    shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id)
+                end
                 lgun.Text="Gun: ACTIVE ("..#eids.." targets)" lgun.TextColor3=Color3.fromRGB(80,230,80)
             else lgun.Text="Gun: Searching..." lgun.TextColor3=Color3.fromRGB(230,180,80) end
         end
