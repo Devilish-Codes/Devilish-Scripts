@@ -2,6 +2,7 @@ local RS=game:GetService("ReplicatedStorage")
 local UIS=game:GetService("UserInputService")
 local PL=game:GetService("Players").LocalPlayer
 local RunService=game:GetService("RunService")
+local TS=game:GetService("TeleportService")
 
 local rollRF=nil
 task.spawn(function()
@@ -107,8 +108,9 @@ minBtn.MouseButton1Click:Connect(function()pan.Visible=false bubble.Visible=true
 bubble.MouseButton1Click:Connect(function()bubble.Visible=false pan.Visible=true end)
 
 -- tab buttons
-local tabCtrl=Instance.new("TextButton") tabCtrl.Size=UDim2.new(0.5,-7,0,24) tabCtrl.Position=UDim2.new(0,5,0,34) tabCtrl.TextSize=11 tabCtrl.Font=Enum.Font.GothamBold tabCtrl.BorderSizePixel=0 tabCtrl.Text="Controls" tabCtrl.Parent=pan Instance.new("UICorner",tabCtrl).CornerRadius=UDim.new(0,4)
-local tabStats=Instance.new("TextButton") tabStats.Size=UDim2.new(0.5,-7,0,24) tabStats.Position=UDim2.new(0.5,2,0,34) tabStats.TextSize=11 tabStats.Font=Enum.Font.GothamBold tabStats.BorderSizePixel=0 tabStats.Text="Stats" tabStats.Parent=pan Instance.new("UICorner",tabStats).CornerRadius=UDim.new(0,4)
+local tabCtrl=Instance.new("TextButton") tabCtrl.Size=UDim2.new(0,68,0,24) tabCtrl.Position=UDim2.new(0,5,0,34) tabCtrl.TextSize=11 tabCtrl.Font=Enum.Font.GothamBold tabCtrl.BorderSizePixel=0 tabCtrl.Text="Controls" tabCtrl.Parent=pan Instance.new("UICorner",tabCtrl).CornerRadius=UDim.new(0,4)
+local tabStats=Instance.new("TextButton") tabStats.Size=UDim2.new(0,68,0,24) tabStats.Position=UDim2.new(0,76,0,34) tabStats.TextSize=11 tabStats.Font=Enum.Font.GothamBold tabStats.BorderSizePixel=0 tabStats.Text="Stats" tabStats.Parent=pan Instance.new("UICorner",tabStats).CornerRadius=UDim.new(0,4)
+local tabServer=Instance.new("TextButton") tabServer.Size=UDim2.new(0,68,0,24) tabServer.Position=UDim2.new(0,147,0,34) tabServer.TextSize=11 tabServer.Font=Enum.Font.GothamBold tabServer.BorderSizePixel=0 tabServer.Text="Server" tabServer.Parent=pan Instance.new("UICorner",tabServer).CornerRadius=UDim.new(0,4)
 
 -- controls frame (tab 1)
 local ctrlFrame=Instance.new("Frame") ctrlFrame.Size=UDim2.new(1,0,0,10) ctrlFrame.Position=UDim2.new(0,0,0,62) ctrlFrame.BackgroundTransparency=1 ctrlFrame.BorderSizePixel=0 ctrlFrame.Parent=pan
@@ -151,18 +153,28 @@ local lFps=mkStat("FPS:      --")
 local resetBtn=Instance.new("TextButton") resetBtn.Size=UDim2.new(1,-10,0,22) resetBtn.Position=UDim2.new(0,5,0,yS) resetBtn.BackgroundColor3=Color3.fromRGB(40,40,80) resetBtn.TextColor3=Color3.fromRGB(150,150,255) resetBtn.Text="Reset Session" resetBtn.TextSize=11 resetBtn.Font=Enum.Font.Gotham resetBtn.BorderSizePixel=0 resetBtn.Parent=statsFrame Instance.new("UICorner",resetBtn).CornerRadius=UDim.new(0,4) yS=yS+26
 statsFrame.Size=UDim2.new(1,0,0,yS+4)
 
+-- server frame (tab 3)
+local serverFrame=Instance.new("Frame") serverFrame.Size=UDim2.new(1,0,0,58) serverFrame.Position=UDim2.new(0,0,0,62) serverFrame.BackgroundTransparency=1 serverFrame.BorderSizePixel=0 serverFrame.Visible=false serverFrame.Parent=pan
+local rejoinBtn=Instance.new("TextButton") rejoinBtn.Size=UDim2.new(1,-10,0,34) rejoinBtn.Position=UDim2.new(0,5,0,12) rejoinBtn.BackgroundColor3=Color3.fromRGB(35,40,70) rejoinBtn.TextColor3=Color3.fromRGB(160,180,255) rejoinBtn.Text="Rejoin Server" rejoinBtn.TextSize=13 rejoinBtn.Font=Enum.Font.GothamBold rejoinBtn.BorderSizePixel=0 rejoinBtn.Parent=serverFrame Instance.new("UICorner",rejoinBtn).CornerRadius=UDim.new(0,6)
+rejoinBtn.MouseButton1Click:Connect(function()
+    rejoinBtn.Text="Rejoining..."
+    pcall(function()TS:TeleportToPlaceInstance(game.PlaceId,game.JobId,PL)end)
+end)
+
 -- tab switching
 local function switchTab(t)
-    local onCtrl=(t=="ctrl")
-    ctrlFrame.Visible=onCtrl statsFrame.Visible=not onCtrl
-    tabCtrl.BackgroundColor3=onCtrl and Color3.fromRGB(50,50,70) or Color3.fromRGB(30,30,30)
-    tabCtrl.TextColor3=onCtrl and Color3.fromRGB(220,220,220) or Color3.fromRGB(130,130,130)
-    tabStats.BackgroundColor3=(not onCtrl) and Color3.fromRGB(50,50,70) or Color3.fromRGB(30,30,30)
-    tabStats.TextColor3=(not onCtrl) and Color3.fromRGB(220,220,220) or Color3.fromRGB(130,130,130)
-    pan.Size=UDim2.new(0,220,0,62+(onCtrl and ctrlFrame or statsFrame).Size.Y.Offset+6)
+    local frames={ctrl=ctrlFrame,stats=statsFrame,server=serverFrame}
+    local tabs={ctrl=tabCtrl,stats=tabStats,server=tabServer}
+    for k,f in pairs(frames) do f.Visible=(k==t) end
+    for k,tb in pairs(tabs) do
+        tb.BackgroundColor3=(k==t) and Color3.fromRGB(50,50,70) or Color3.fromRGB(30,30,30)
+        tb.TextColor3=(k==t) and Color3.fromRGB(220,220,220) or Color3.fromRGB(130,130,130)
+    end
+    pan.Size=UDim2.new(0,220,0,62+frames[t].Size.Y.Offset+6)
 end
 tabCtrl.MouseButton1Click:Connect(function()switchTab("ctrl")end)
 tabStats.MouseButton1Click:Connect(function()switchTab("stats")end)
+tabServer.MouseButton1Click:Connect(function()switchTab("server")end)
 switchTab("ctrl")
 
 -- equip loop

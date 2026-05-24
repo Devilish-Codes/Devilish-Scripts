@@ -2,6 +2,7 @@ local RS=game:GetService("ReplicatedStorage")
 local UIS=game:GetService("UserInputService")
 local PL=game:GetService("Players").LocalPlayer
 local VU=game:GetService("VirtualUser")
+local TS=game:GetService("TeleportService")
 local rem=RS:WaitForChild("RemoteEvents",10)
 if not rem then return end
 local function F(n,...)local r=rem:FindFirstChild(n)if r and r:IsA("RemoteEvent")then r:FireServer(...)end end
@@ -42,7 +43,6 @@ g.Name="AutoGui" g.ResetOnSpawn=false
 pcall(function()g.Parent=gethui()end)
 if not g.Parent then g.Parent=game:GetService("CoreGui")end
 
--- black screen overlay (inserted before pan so pan renders on top)
 local blackScreen=Instance.new("Frame") blackScreen.Size=UDim2.new(1,0,1,0) blackScreen.BackgroundColor3=Color3.fromRGB(0,0,0) blackScreen.BorderSizePixel=0 blackScreen.Visible=S.black blackScreen.Parent=g
 
 local pan=Instance.new("Frame")
@@ -84,16 +84,24 @@ UIS.InputEnded:Connect(function(i)if i.UserInputType==Enum.UserInputType.MouseBu
 minBtn.MouseButton1Click:Connect(function()pan.Visible=false bubble.Visible=true end)
 bubble.MouseButton1Click:Connect(function()bubble.Visible=false pan.Visible=true end)
 
-local yP=34
+-- tab buttons (panel is 200px: 5 + 90 + 3 + 90 + 7 = 195... close enough)
+local tabCtrl=Instance.new("TextButton") tabCtrl.Size=UDim2.new(0,90,0,24) tabCtrl.Position=UDim2.new(0,5,0,34) tabCtrl.TextSize=11 tabCtrl.Font=Enum.Font.GothamBold tabCtrl.BorderSizePixel=0 tabCtrl.Text="Controls" tabCtrl.Parent=pan Instance.new("UICorner",tabCtrl).CornerRadius=UDim.new(0,4)
+local tabServer=Instance.new("TextButton") tabServer.Size=UDim2.new(0,90,0,24) tabServer.Position=UDim2.new(0,98,0,34) tabServer.TextSize=11 tabServer.Font=Enum.Font.GothamBold tabServer.BorderSizePixel=0 tabServer.Text="Server" tabServer.Parent=pan Instance.new("UICorner",tabServer).CornerRadius=UDim.new(0,4)
+
+-- controls frame
+local ctrlFrame=Instance.new("Frame") ctrlFrame.Size=UDim2.new(1,0,0,10) ctrlFrame.Position=UDim2.new(0,0,0,62) ctrlFrame.BackgroundTransparency=1 ctrlFrame.BorderSizePixel=0 ctrlFrame.Parent=pan
+local yC=4
+local sep=Instance.new("Frame") sep.Size=UDim2.new(1,-10,0,1) sep.Position=UDim2.new(0,5,0,yC) sep.BackgroundColor3=Color3.fromRGB(55,55,55) sep.BorderSizePixel=0 sep.Parent=ctrlFrame yC=yC+8
+
 local rfs={}
 local function T(lbl,key,cb)
     local b=Instance.new("TextButton")
-    b.Size=UDim2.new(1,-10,0,26) b.Position=UDim2.new(0,5,0,yP)
-    b.BorderSizePixel=0 b.TextSize=12 b.Font=Enum.Font.Gotham b.Parent=pan
+    b.Size=UDim2.new(1,-10,0,26) b.Position=UDim2.new(0,5,0,yC)
+    b.BorderSizePixel=0 b.TextSize=12 b.Font=Enum.Font.Gotham b.Parent=ctrlFrame
     Instance.new("UICorner",b).CornerRadius=UDim.new(0,4)
     local function rf()if S[key]then b.Text=lbl.." ON" b.BackgroundColor3=Color3.fromRGB(25,70,25) b.TextColor3=Color3.fromRGB(80,230,80)else b.Text=lbl.." OFF" b.BackgroundColor3=Color3.fromRGB(70,25,25) b.TextColor3=Color3.fromRGB(230,80,80)end end
     b.MouseButton1Click:Connect(function()S[key]=not S[key] rf() saveState() if cb then cb(S[key]) end end)
-    rf() if cb then cb(S[key]) end yP=yP+30 table.insert(rfs,rf)
+    rf() if cb then cb(S[key]) end yC=yC+30 table.insert(rfs,rf)
 end
 
 stopBtn.MouseButton1Click:Connect(function()
@@ -105,11 +113,34 @@ end)
 T("Ash Upgrades","ua")
 T("Gain Miasma","gm")
 T("Black Screen","black",function(on)blackScreen.Visible=on end)
-local sep=Instance.new("Frame") sep.Size=UDim2.new(1,-10,0,1) sep.Position=UDim2.new(0,5,0,yP+3) sep.BackgroundColor3=Color3.fromRGB(55,55,55) sep.BorderSizePixel=0 sep.Parent=pan yP=yP+10
+local sep2=Instance.new("Frame") sep2.Size=UDim2.new(1,-10,0,1) sep2.Position=UDim2.new(0,5,0,yC+3) sep2.BackgroundColor3=Color3.fromRGB(55,55,55) sep2.BorderSizePixel=0 sep2.Parent=ctrlFrame yC=yC+10
 T("TP Miasma","tm"); T("TP Ash","ta"); T("TP Manual","tn"); T("TP Beast","tb")
 T("Auto Return","tele")
-local savePosBtn=Instance.new("TextButton") savePosBtn.Size=UDim2.new(1,-10,0,24) savePosBtn.Position=UDim2.new(0,5,0,yP) savePosBtn.BackgroundColor3=Color3.fromRGB(35,55,80) savePosBtn.TextColor3=Color3.fromRGB(120,180,255) savePosBtn.Text="Save Position" savePosBtn.TextSize=12 savePosBtn.Font=Enum.Font.Gotham savePosBtn.BorderSizePixel=0 savePosBtn.Parent=pan Instance.new("UICorner",savePosBtn).CornerRadius=UDim.new(0,4) yP=yP+28
-pan.Size=UDim2.new(0,200,0,yP+6)
+local savePosBtn=Instance.new("TextButton") savePosBtn.Size=UDim2.new(1,-10,0,24) savePosBtn.Position=UDim2.new(0,5,0,yC) savePosBtn.BackgroundColor3=Color3.fromRGB(35,55,80) savePosBtn.TextColor3=Color3.fromRGB(120,180,255) savePosBtn.Text="Save Position" savePosBtn.TextSize=12 savePosBtn.Font=Enum.Font.Gotham savePosBtn.BorderSizePixel=0 savePosBtn.Parent=ctrlFrame Instance.new("UICorner",savePosBtn).CornerRadius=UDim.new(0,4) yC=yC+28
+ctrlFrame.Size=UDim2.new(1,0,0,yC+4)
+
+-- server frame
+local serverFrame=Instance.new("Frame") serverFrame.Size=UDim2.new(1,0,0,58) serverFrame.Position=UDim2.new(0,0,0,62) serverFrame.BackgroundTransparency=1 serverFrame.BorderSizePixel=0 serverFrame.Visible=false serverFrame.Parent=pan
+local rejoinBtn=Instance.new("TextButton") rejoinBtn.Size=UDim2.new(1,-10,0,34) rejoinBtn.Position=UDim2.new(0,5,0,12) rejoinBtn.BackgroundColor3=Color3.fromRGB(35,40,70) rejoinBtn.TextColor3=Color3.fromRGB(160,180,255) rejoinBtn.Text="Rejoin Server" rejoinBtn.TextSize=13 rejoinBtn.Font=Enum.Font.GothamBold rejoinBtn.BorderSizePixel=0 rejoinBtn.Parent=serverFrame Instance.new("UICorner",rejoinBtn).CornerRadius=UDim.new(0,6)
+rejoinBtn.MouseButton1Click:Connect(function()
+    rejoinBtn.Text="Rejoining..."
+    pcall(function()TS:TeleportToPlaceInstance(game.PlaceId,game.JobId,PL)end)
+end)
+
+-- tab switching
+local function switchTab(t)
+    local frames={ctrl=ctrlFrame,server=serverFrame}
+    local tabs={ctrl=tabCtrl,server=tabServer}
+    for k,f in pairs(frames) do f.Visible=(k==t) end
+    for k,tb in pairs(tabs) do
+        tb.BackgroundColor3=(k==t) and Color3.fromRGB(50,50,70) or Color3.fromRGB(30,30,30)
+        tb.TextColor3=(k==t) and Color3.fromRGB(220,220,220) or Color3.fromRGB(130,130,130)
+    end
+    pan.Size=UDim2.new(0,200,0,62+frames[t].Size.Y.Offset+6)
+end
+tabCtrl.MouseButton1Click:Connect(function()switchTab("ctrl")end)
+tabServer.MouseButton1Click:Connect(function()switchTab("server")end)
+switchTab("ctrl")
 
 savePosBtn.MouseButton1Click:Connect(function()
     local char=PL.Character
