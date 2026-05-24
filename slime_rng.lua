@@ -125,19 +125,38 @@ task.spawn(function()
     end
 end)
 
--- reward tracker: raw diagnostic — shows last event args in GUI
+-- reward tracker
+local goopTotal,coinTotal,rewardStart=0,0,nil
 task.spawn(function()
     while not hitRE do task.wait(0.5) end
-    hitRE.OnClientEvent:Connect(function(...)
-        local args={...}
-        local parts={}
-        for _,v in ipairs(args) do
-            parts[#parts+1]=typeof(v)..":"..tostring(v)
+    rewardStart=tick()
+    hitRE.OnClientEvent:Connect(function(a1,a2,a3)
+        if a1=="goopRewarded" then
+            if type(a2)=="number" then goopTotal=goopTotal+a2
+            elseif type(a3)=="number" then goopTotal=goopTotal+a3 end
+        elseif a1=="coinRewarded" then
+            if type(a2)=="number" then coinTotal=coinTotal+a2
+            elseif type(a3)=="number" then coinTotal=coinTotal+a3 end
+        elseif type(a1)=="number" and a2=="goop" then
+            goopTotal=goopTotal+a1
+        elseif type(a1)=="number" and a1>1000 and type(a2)=="number" then
+            goopTotal=goopTotal+a1
         end
-        local line=table.concat(parts," | ")
-        lGoopKills.Text=line
-        lGoopMin.Text="^last event"
     end)
+    local function fmt(n)
+        if n>=1e9 then return string.format("%.1fB",n/1e9)
+        elseif n>=1e6 then return string.format("%.1fM",n/1e6)
+        elseif n>=1e3 then return string.format("%.1fK",n/1e3)
+        else return tostring(math.floor(n)) end
+    end
+    while true do
+        task.wait(1)
+        local el=math.max(tick()-rewardStart,1)
+        lGoopKills.Text="Goop: "..fmt(goopTotal)
+        lGoopX2.Text="Coin: "..fmt(coinTotal)
+        lGoopMin.Text="Goop/min: "..fmt(goopTotal/el*60)
+        lCoinMin.Text="Coin/min: "..fmt(coinTotal/el*60)
+    end
 end)
 
 -- gun: focus one target until dead, then immediately next; keep firing at last target if eids empty
