@@ -244,16 +244,13 @@ task.spawn(function()
     end
 end)
 
--- anti-AFK: real click at screen center every 30 seconds
+-- anti-AFK: right-click via VirtualUser on Idled event (resets idle timer before kick)
 local VU=game:GetService("VirtualUser")
-task.spawn(function()
-    while true do task.wait(30)
-        if S.afk then pcall(function()
-            local c=workspace.CurrentCamera.ViewportSize/2
-            VU:Button1Down(c,workspace.CurrentCamera.CFrame)
-            task.wait(0.1)
-            VU:Button1Up(c,workspace.CurrentCamera.CFrame)
-        end) end
+PL.Idled:Connect(function()
+    if S.afk then
+        VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+        task.wait(1)
+        VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
     end
 end)
 
