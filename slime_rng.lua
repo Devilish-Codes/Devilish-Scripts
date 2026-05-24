@@ -210,56 +210,29 @@ task.spawn(function()
     end
 end)
 
--- slime tele: teleport equipped pet slimes to current gun target
-local PET_FOLDERS={"Pets","OwnedSlimes","AllySlimes","Companions","PlayerSlimes","SlimePets","FriendlySlimes"}
+-- slime tele: teleport player slimes (workspace.GameplayN.Slimes) onto current gun target
 task.spawn(function()
     while true do
         if S.slimes and gunTarget then
-            -- find target enemy's position
             local tp=nil
             for _,v in ipairs(workspace:GetChildren()) do
                 if v.Name:match("^Gameplay%d+$") then
                     local ef=v:FindFirstChild("Enemies")
                     if ef then
                         local em=ef:FindFirstChild(tostring(gunTarget))
-                        if em then
-                            tp=em:IsA("BasePart") and em or em:FindFirstChildOfClass("BasePart")
-                        end
+                        if em then tp=em:IsA("BasePart") and em or em:FindFirstChildOfClass("BasePart") end
                     end
                 end
             end
             if tp then
-                local dest=tp.CFrame+Vector3.new(0,3,0)
-                -- pets in character
-                local char=PL.Character
-                if char then
-                    for _,m in ipairs(char:GetChildren()) do
-                        if m:IsA("Model") then
-                            local pp=m.PrimaryPart or m:FindFirstChildOfClass("BasePart")
-                            if pp then pcall(function()pp.CFrame=dest end) end
-                        end
-                    end
-                end
-                -- pets in workspace pet folders
-                for _,fname in ipairs(PET_FOLDERS) do
-                    local f=workspace:FindFirstChild(fname)
-                    if f then
-                        for _,m in ipairs(f:GetChildren()) do
-                            local pp=m:IsA("BasePart") and m or (m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildOfClass("BasePart")))
-                            if pp then pcall(function()pp.CFrame=dest end) end
-                        end
-                    end
-                end
-                -- pets inside Gameplay folders
+                local dest=tp.CFrame+Vector3.new(0,2,0)
                 for _,v in ipairs(workspace:GetChildren()) do
                     if v.Name:match("^Gameplay%d+$") then
-                        for _,fname in ipairs(PET_FOLDERS) do
-                            local f=v:FindFirstChild(fname)
-                            if f then
-                                for _,m in ipairs(f:GetChildren()) do
-                                    local pp=m:IsA("BasePart") and m or (m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildOfClass("BasePart")))
-                                    if pp then pcall(function()pp.CFrame=dest end) end
-                                end
+                        local sf=v:FindFirstChild("Slimes")
+                        if sf then
+                            for _,m in ipairs(sf:GetChildren()) do
+                                local pp=m:IsA("BasePart") and m or (m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildOfClass("BasePart")))
+                                if pp then pcall(function()pp.CFrame=dest end) end
                             end
                         end
                     end
