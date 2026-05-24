@@ -105,6 +105,12 @@ stopBtn.MouseButton1Click:Connect(function()
     for k in pairs(S)do S[k]=false end for _,rf in ipairs(rfs)do rf()end task.wait(0.1) g:Destroy()
 end)
 T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
+
+local sep2=Instance.new("Frame") sep2.Size=UDim2.new(1,-10,0,1) sep2.Position=UDim2.new(0,5,0,yP+3) sep2.BackgroundColor3=Color3.fromRGB(55,55,55) sep2.BorderSizePixel=0 sep2.Parent=pan yP=yP+10
+local lGoopKills=mkStat("Goop kills: --")
+local lGoopX2=mkStat("x2 rolls:   --")
+local lGoopMin=mkStat("Goop/min:   --")
+local lCoinMin=mkStat("Coin/min:   --")
 pan.Size=UDim2.new(0,220,0,yP+6)
 
 -- equip loop
@@ -116,6 +122,38 @@ task.spawn(function()
             if gun and gun.Parent~=char then gun.Parent=char end
         end
         task.wait(0.1)
+    end
+end)
+
+-- reward tracker: hook hitRE.OnClientEvent for goop/coin rewards
+local goopKills,goopX2,coinTotal,rewardStart=0,0,0,nil
+task.spawn(function()
+    while not hitRE do task.wait(0.5) end
+    rewardStart=tick()
+    hitRE.OnClientEvent:Connect(function(a1,a2,a3)
+        if type(a1)=="number" and a2=="goop" then
+            -- (multiplier, "goop", enemyId)
+            goopKills=goopKills+1
+            if a1>=2 then goopX2=goopX2+1 end
+        elseif a1=="coinRewarded" then
+            coinTotal=coinTotal+(type(a2)=="number" and a2 or 1)
+        end
+    end)
+    while true do
+        task.wait(1)
+        local el=tick()-(rewardStart or tick())
+        if el>=10 then
+            local gpm=goopKills/el*60
+            local cpm=coinTotal/el*60
+            local function fmt(n)
+                if n>=1e6 then return string.format("%.1fM",n/1e6)
+                elseif n>=1e3 then return string.format("%.1fK",n/1e3)
+                else return tostring(math.floor(n)) end
+            end
+            lGoopKills.Text="Goop kills: "..goopKills.." (x2:"..goopX2..")"
+            lGoopMin.Text="Goop/min:   "..fmt(gpm).." kills"
+            lCoinMin.Text="Coin/min:   "..fmt(cpm)
+        end
     end
 end)
 
