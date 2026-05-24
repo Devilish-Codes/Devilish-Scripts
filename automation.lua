@@ -75,8 +75,8 @@ pan.Size=UDim2.new(0,200,0,yP+6)
 
 local UP={"MiasmaMiasmaMultiplier","MiasmaLuckMultipleir","MiasmaQiMultiplier"}
 local AS={"AshAshMultiplier","AshLuckMultiplier","AshQiMultiplier"}
-task.spawn(function()while true do if S.up then for _,id in ipairs(UP)do F("PurchaseUpgrade",id,false) task.wait()end else task.wait(0.5)end end end)
-task.spawn(function()while true do if S.ua then for _,id in ipairs(AS)do F("PurchaseUpgrade",id,false) task.wait()end else task.wait(0.5)end end end)
+task.spawn(function()while true do if S.up then for _,id in ipairs(UP)do F("PurchaseUpgrade",id,false) task.wait(0.1)end else task.wait(0.5)end end end)
+task.spawn(function()while true do if S.ua then for _,id in ipairs(AS)do F("PurchaseUpgrade",id,false) task.wait(0.1)end else task.wait(0.5)end end end)
 task.spawn(function()while true do if S.bs then F("SetBeastStage",200)end task.wait(5)end end)
 task.spawn(function()while true do if S.mf then F("MiasmaMarkPress") F("AshMarkPress") F("CultivationManualRerollPulse")end task.wait(0.5)end end)
 task.spawn(function()while true do if S.gm then F("GainMiasma")end task.wait()end end)
