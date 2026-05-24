@@ -13,17 +13,39 @@ task.spawn(function()
     end
 end)
 
-local gunRF=nil
-local shotCount=0
+local hitRE,gunRF,shotCount=nil,nil,0
 local S={gun=false,roll=false,afk=false,collect=false}
 local rfs={}
 
 task.spawn(function()
     task.wait(1)
+    local bestN=-1
     for _,v in ipairs(RS:GetDescendants()) do
-        if v:IsA("RemoteFunction") and v.Parent and v.Parent.Name=="SlimeGunService" then
-            gunRF=v break
+        if v:IsA("RemoteEvent") then
+            local n=v.Parent and tonumber(v.Parent.Name:match("^Gameplay(%d+)$"))
+            if n and n>bestN then hitRE=v bestN=n end
         end
+        if v:IsA("RemoteFunction") and v.Parent and v.Parent.Name=="SlimeGunService" then
+            gunRF=v
+        end
+    end
+end)
+
+local eids={}
+task.spawn(function()
+    while true do
+        local t={}
+        for _,v in ipairs(workspace:GetChildren()) do
+            if v.Name:match("^Gameplay%d+$") then
+                local ef=v:FindFirstChild("Enemies")
+                if ef then
+                    for _,e in ipairs(ef:GetChildren()) do
+                        local id=tonumber(e.Name) if id then t[#t+1]=id end
+                    end
+                end
+            end
+        end
+        eids=t task.wait(2)
     end
 end)
 
@@ -67,49 +89,49 @@ end
 local lpm=mkStat("Goop/min:  --")
 local lph=mkStat("Goop/hr:   --")
 local lpd=mkStat("Goop/day:  --")
-local lgun=mkStat("Gun 5x: OFF")
+local lgun=mkStat("Gun: --")
 local sep=Instance.new("Frame") sep.Size=UDim2.new(1,-10,0,1) sep.Position=UDim2.new(0,5,0,yP+3) sep.BackgroundColor3=Color3.fromRGB(55,55,55) sep.BorderSizePixel=0 sep.Parent=pan yP=yP+10
 
 local function T(lbl,key)
     local b=Instance.new("TextButton") b.Size=UDim2.new(1,-10,0,26) b.Position=UDim2.new(0,5,0,yP) b.BorderSizePixel=0 b.TextSize=12 b.Font=Enum.Font.Gotham b.Parent=pan Instance.new("UICorner",b).CornerRadius=UDim.new(0,4)
     local function rf()if S[key]then b.Text=lbl.." ON" b.BackgroundColor3=Color3.fromRGB(25,70,25) b.TextColor3=Color3.fromRGB(80,230,80)else b.Text=lbl.." OFF" b.BackgroundColor3=Color3.fromRGB(70,25,25) b.TextColor3=Color3.fromRGB(230,80,80)end end
-    b.MouseButton1Click:Connect(function()S[key]=not S[key] rf()
-        if key=="gun" then
-            if S.gun then lgun.Text="Gun 5x: ON" lgun.TextColor3=Color3.fromRGB(80,230,80)
-            else lgun.Text="Gun 5x: OFF" lgun.TextColor3=Color3.fromRGB(160,220,160) end
-        end
-    end) rf() yP=yP+30 table.insert(rfs,rf)
+    b.MouseButton1Click:Connect(function()S[key]=not S[key] rf()end) rf() yP=yP+30 table.insert(rfs,rf)
 end
 stopBtn.MouseButton1Click:Connect(function()
     for k in pairs(S)do S[k]=false end for _,rf in ipairs(rfs)do rf()end task.wait(0.1) g:Destroy()
 end)
-T("Gun 5x","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
+T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
 pan.Size=UDim2.new(0,220,0,yP+6)
 
--- intercept user's own confirmHit and duplicate it 4 more times (5x total)
-pcall(function()
-    local mt=getrawmetatable(game)
-    local oldNC=mt.__namecall
-    setreadonly(mt,false)
-    mt.__namecall=function(self,...)
-        local m=getnamecallmethod()
-        local args={...}
-        local r=oldNC(self,...)
-        if S.gun and m=="FireServer" and args[1]=="confirmHit" then
-            local re=self
-            local eid=args[3]
-            for _=1,4 do
-                shotCount=shotCount+1
-                local sc=shotCount
-                task.spawn(function()
-                    if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",eid)end) end
-                    pcall(function()re:FireServer("confirmHit",sc,eid)end)
-                end)
+-- equip + status
+task.spawn(function()
+    while true do
+        if hitRE then
+            local char=PL.Character
+            if char then
+                local gun=char:FindFirstChild("SlimeGun") or PL.Backpack:FindFirstChild("SlimeGun")
+                if gun and gun.Parent~=char then gun.Parent=char end
             end
-        end
-        return r
+            if S.gun and #eids>0 then lgun.Text="FIRE "..#eids.."t" lgun.TextColor3=Color3.fromRGB(80,230,80)
+            elseif S.gun then lgun.Text="FIRE 0t" lgun.TextColor3=Color3.fromRGB(230,180,80)
+            else lgun.Text="RDY "..#eids.."t" lgun.TextColor3=Color3.fromRGB(160,220,160) end
+        else lgun.Text="NO_RE E:"..#eids lgun.TextColor3=Color3.fromRGB(230,80,80) end
+        task.wait(0.1)
     end
-    setreadonly(mt,true)
+end)
+
+-- gun: one enemy per tick, sync try→confirm
+local eidx=1
+task.spawn(function()
+    while true do
+        if hitRE and S.gun and #eids>0 then
+            if eidx>#eids then eidx=1 end
+            local id=eids[eidx] eidx=eidx+1
+            if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",id)end) end
+            shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id)
+        end
+        task.wait(0.05)
+    end
 end)
 
 task.spawn(function()
