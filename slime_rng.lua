@@ -36,7 +36,7 @@ task.spawn(function()
     while true do
         local t={}
         for _,v in ipairs(workspace:GetDescendants()) do
-            if v.Name=="Enemies" and (v:IsA("Folder") or v:IsA("Model")) then
+            if v.Name:lower()=="enemies" and (v:IsA("Folder") or v:IsA("Model")) then
                 for _,e in ipairs(v:GetChildren()) do
                     local id=tonumber(e.Name) if id then t[#t+1]=id end
                 end
