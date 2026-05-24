@@ -137,8 +137,15 @@ local function hookRE(re)
         local isCoin=a1=="coinRewarded" or (type(a1)=="string" and a1:lower():find("coin"))
         if isGoop or isCoin then
             lGoopKills.Text="a1="..s(a1)
-            lGoopX2.Text="a2="..s(a2).." a3="..s(a3)
-            lGoopMin.Text="a4="..s(a4)
+            if type(a2)=="table" then
+                local parts={}
+                for k,v in pairs(a2) do parts[#parts+1]=tostring(k).."="..tostring(v) end
+                lGoopX2.Text=table.concat(parts," | ")
+                lGoopMin.Text="(table above)"
+            else
+                lGoopX2.Text="a2="..s(a2).." a3="..s(a3)
+                lGoopMin.Text="a4="..s(a4)
+            end
         end
         if a1=="goopRewarded" then
             if type(a2)=="number" then goopTotal=goopTotal+a2
