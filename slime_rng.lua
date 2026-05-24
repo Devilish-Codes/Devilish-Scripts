@@ -13,7 +13,7 @@ task.spawn(function()
     end
 end)
 
-local hitRE,shotCount=nil,0
+local hitRE,gunRF,shotCount=nil,nil,0
 local S={gun=false,roll=false,afk=false,collect=false}
 local rfs={}
 
@@ -24,6 +24,9 @@ task.spawn(function()
         if v:IsA("RemoteEvent") then
             local n=v.Parent and tonumber(v.Parent.Name:match("^Gameplay(%d+)$"))
             if n and n>bestN then hitRE=v bestN=n end
+        end
+        if v:IsA("RemoteFunction") and v.Parent and v.Parent.Name=="SlimeGunService" then
+            gunRF=v
         end
     end
 end)
@@ -100,7 +103,20 @@ end)
 T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
 pan.Size=UDim2.new(0,220,0,yP+6)
 
--- gun loop: 50 Hz, all enemies simultaneously, no tryFireSlimeGun
+-- tryFireSlimeGun loop: 20 Hz, spawned per enemy so InvokeServer doesn't block
+task.spawn(function()
+    while true do
+        if S.gun and gunRF and #eids>0 then
+            for _,id in ipairs(eids) do
+                local eid=id
+                task.spawn(function()pcall(function()gunRF:InvokeServer("tryFireSlimeGun",eid)end)end)
+            end
+        end
+        task.wait(0.05)
+    end
+end)
+
+-- confirmHit loop: 50 Hz, all enemies simultaneously
 task.spawn(function()
     while true do
         if hitRE then
