@@ -13,7 +13,7 @@ task.spawn(function()
     end
 end)
 
-local hitRE,gunRF,shotCount=nil,nil,0
+local hitRE,gunRF,invRF,shotCount=nil,nil,nil,0
 local S={gun=false,roll=false,afk=false,collect=false,slimes=false}
 local rfs={}
 
@@ -45,6 +45,9 @@ task.spawn(function()
             end
             if v:IsA("RemoteFunction") and v.Parent and v.Parent.Name=="SlimeGunService" then
                 gunRF=v
+            end
+            if v:IsA("RemoteFunction") and v.Parent and v.Parent.Name=="InventoryService" then
+                invRF=v
             end
         end
         task.wait(3)
@@ -210,40 +213,57 @@ task.spawn(function()
     end
 end)
 
--- slime tele: firetouchinterest between player slimes and current enemy
+-- slime tele: on new gun target, teleport player to enemy, re-equip slimes there, teleport back
+local lastTeleTarget=nil
 task.spawn(function()
     while true do
-        if S.slimes and gunTarget then
-            local enemyPart=nil
+        if S.slimes and invRF and gunTarget and gunTarget~=lastTeleTarget then
+            lastTeleTarget=gunTarget
+            -- find enemy position
+            local enemyPos=nil
             for _,v in ipairs(workspace:GetChildren()) do
                 if v.Name:match("^Gameplay%d+$") then
                     local ef=v:FindFirstChild("Enemies")
                     if ef then
                         local em=ef:FindFirstChild(tostring(gunTarget))
-                        if em then enemyPart=em:FindFirstChild("RootPart") or em:FindFirstChildOfClass("BasePart") end
-                    end
-                end
-            end
-            if enemyPart then
-                for _,v in ipairs(workspace:GetChildren()) do
-                    if v.Name:match("^Gameplay%d+$") then
-                        local sf=v:FindFirstChild("Slimes")
-                        if sf then
-                            for _,m in ipairs(sf:GetChildren()) do
-                                if m:IsA("Model") then
-                                    local sp=m:FindFirstChild("RootPart") or m:FindFirstChildOfClass("BasePart")
-                                    if sp then
-                                        pcall(firetouchinterest, sp, enemyPart, 0)
-                                        pcall(firetouchinterest, enemyPart, sp, 0)
-                                    end
-                                end
-                            end
+                        if em then
+                            local rp=em:FindFirstChild("RootPart")
+                            if rp then enemyPos=rp.Position end
                         end
                     end
                 end
             end
+            -- collect current slime GUIDs from workspace
+            local slimeIDs={}
+            for _,v in ipairs(workspace:GetChildren()) do
+                if v.Name:match("^Gameplay%d+$") then
+                    local sf=v:FindFirstChild("Slimes")
+                    if sf then
+                        for _,m in ipairs(sf:GetChildren()) do
+                            if m:IsA("Model") then slimeIDs[#slimeIDs+1]=m.Name end
+                        end
+                    end
+                end
+            end
+            local hrp=PL.Character and PL.Character:FindFirstChild("HumanoidRootPart")
+            if hrp and enemyPos and #slimeIDs>0 then
+                local savedCF=hrp.CFrame
+                -- teleport to enemy
+                hrp.CFrame=CFrame.new(enemyPos+Vector3.new(0,3,0))
+                task.wait(0.1)
+                -- unequip all slots
+                for i=1,8 do pcall(function()invRF:InvokeServer("requestUnequip",i)end) end
+                task.wait(0.1)
+                -- re-equip each slime (spawns at player feet = on enemy)
+                for _,id in ipairs(slimeIDs) do
+                    pcall(function()invRF:InvokeServer("requestEquip",id)end)
+                end
+                task.wait(0.1)
+                -- teleport player back
+                hrp.CFrame=savedCF
+            end
         end
-        task.wait(0.05)
+        task.wait(0.1)
     end
 end)
 
