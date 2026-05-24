@@ -14,20 +14,40 @@ task.spawn(function()
 end)
 
 local hitRE,gunRF,shotCount=nil,nil,0
-local S={gun=false,roll=false,afk=false,collect=false}
+local S={gun=false,roll=false,afk=false,collect=false,slimes=false}
 local rfs={}
+
+local SAVE_FILE="slime_rng_state.txt"
+local SKEYS={"gun","roll","afk","collect","slimes"}
+local function saveState()
+    local parts={}
+    for _,k in ipairs(SKEYS) do parts[#parts+1]=k.."="..(S[k] and "1" or "0") end
+    pcall(writefile,SAVE_FILE,table.concat(parts,";"))
+end
+local function loadState()
+    local ok,data=pcall(readfile,SAVE_FILE)
+    if not ok or not data then return end
+    for pair in data:gmatch("[^;]+") do
+        local k,v=pair:match("^(.-)=(.+)$")
+        if k and S[k]~=nil then S[k]=(v=="1") end
+    end
+end
+loadState()
 
 task.spawn(function()
     task.wait(1)
-    local bestN=-1
-    for _,v in ipairs(RS:GetDescendants()) do
-        if v:IsA("RemoteEvent") then
-            local n=v.Parent and tonumber(v.Parent.Name:match("^Gameplay(%d+)$"))
-            if n and n>bestN then hitRE=v bestN=n end
+    while true do
+        local bestN=-1
+        for _,v in ipairs(RS:GetDescendants()) do
+            if v:IsA("RemoteEvent") then
+                local n=v.Parent and tonumber(v.Parent.Name:match("^Gameplay(%d+)$"))
+                if n and n>bestN then hitRE=v bestN=n end
+            end
+            if v:IsA("RemoteFunction") and v.Parent and v.Parent.Name=="SlimeGunService" then
+                gunRF=v
+            end
         end
-        if v:IsA("RemoteFunction") and v.Parent and v.Parent.Name=="SlimeGunService" then
-            gunRF=v
-        end
+        task.wait(3)
     end
 end)
 
@@ -45,7 +65,7 @@ task.spawn(function()
                 end
             end
         end
-        eids=t task.wait(2)
+        eids=t task.wait(0.5)
     end
 end)
 
@@ -95,12 +115,12 @@ local sep=Instance.new("Frame") sep.Size=UDim2.new(1,-10,0,1) sep.Position=UDim2
 local function T(lbl,key)
     local b=Instance.new("TextButton") b.Size=UDim2.new(1,-10,0,26) b.Position=UDim2.new(0,5,0,yP) b.BorderSizePixel=0 b.TextSize=12 b.Font=Enum.Font.Gotham b.Parent=pan Instance.new("UICorner",b).CornerRadius=UDim.new(0,4)
     local function rf()if S[key]then b.Text=lbl.." ON" b.BackgroundColor3=Color3.fromRGB(25,70,25) b.TextColor3=Color3.fromRGB(80,230,80)else b.Text=lbl.." OFF" b.BackgroundColor3=Color3.fromRGB(70,25,25) b.TextColor3=Color3.fromRGB(230,80,80)end end
-    b.MouseButton1Click:Connect(function()S[key]=not S[key] rf()end) rf() yP=yP+30 table.insert(rfs,rf)
+    b.MouseButton1Click:Connect(function()S[key]=not S[key] rf() saveState()end) rf() yP=yP+30 table.insert(rfs,rf)
 end
 stopBtn.MouseButton1Click:Connect(function()
     for k in pairs(S)do S[k]=false end for _,rf in ipairs(rfs)do rf()end task.wait(0.1) g:Destroy()
 end)
-T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
+T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk"); T("Slime Tele","slimes")
 pan.Size=UDim2.new(0,220,0,yP+6)
 
 -- equip + status
@@ -120,15 +140,20 @@ task.spawn(function()
     end
 end)
 
--- gun: one enemy per tick, sync try→confirm
-local eidx=1
+-- gun: focus one target until dead, then immediately next; keep firing at last target if eids empty
+local gunTarget=nil
 task.spawn(function()
     while true do
-        if hitRE and S.gun and #eids>0 then
-            if eidx>#eids then eidx=1 end
-            local id=eids[eidx] eidx=eidx+1
-            if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",id)end) end
-            shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id)
+        if hitRE and S.gun then
+            if #eids>0 then
+                local alive=false
+                for _,id in ipairs(eids) do if id==gunTarget then alive=true break end end
+                if not alive then gunTarget=eids[1] end
+            end
+            if gunTarget then
+                if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",gunTarget)end) end
+                shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,gunTarget)
+            end
         end
         task.wait(0.05)
     end
@@ -141,17 +166,20 @@ task.spawn(function()
     end
 end)
 
+-- anti-AFK: real click at screen center every 30 seconds
 local VU=game:GetService("VirtualUser")
 task.spawn(function()
-    while true do task.wait(60)
+    while true do task.wait(30)
         if S.afk then pcall(function()
-            VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+            local c=workspace.CurrentCamera.ViewportSize/2
+            VU:Button1Down(c,workspace.CurrentCamera.CFrame)
             task.wait(0.1)
-            VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+            VU:Button1Up(c,workspace.CurrentCamera.CFrame)
         end) end
     end
 end)
 
+-- auto collect
 task.spawn(function()
     local DROP_FOLDERS={"Drops","Fruits","Items","Pickups","Collectibles","GoopDrops","WorldItems"}
     while true do
@@ -179,6 +207,66 @@ task.spawn(function()
             end
         end
         task.wait(0.5)
+    end
+end)
+
+-- slime tele: teleport equipped pet slimes to current gun target
+local PET_FOLDERS={"Pets","OwnedSlimes","AllySlimes","Companions","PlayerSlimes","SlimePets","FriendlySlimes"}
+task.spawn(function()
+    while true do
+        if S.slimes and gunTarget then
+            -- find target enemy's position
+            local tp=nil
+            for _,v in ipairs(workspace:GetChildren()) do
+                if v.Name:match("^Gameplay%d+$") then
+                    local ef=v:FindFirstChild("Enemies")
+                    if ef then
+                        local em=ef:FindFirstChild(tostring(gunTarget))
+                        if em then
+                            tp=em:IsA("BasePart") and em or em:FindFirstChildOfClass("BasePart")
+                        end
+                    end
+                end
+            end
+            if tp then
+                local dest=tp.CFrame+Vector3.new(0,3,0)
+                -- pets in character
+                local char=PL.Character
+                if char then
+                    for _,m in ipairs(char:GetChildren()) do
+                        if m:IsA("Model") then
+                            local pp=m.PrimaryPart or m:FindFirstChildOfClass("BasePart")
+                            if pp then pcall(function()pp.CFrame=dest end) end
+                        end
+                    end
+                end
+                -- pets in workspace pet folders
+                for _,fname in ipairs(PET_FOLDERS) do
+                    local f=workspace:FindFirstChild(fname)
+                    if f then
+                        for _,m in ipairs(f:GetChildren()) do
+                            local pp=m:IsA("BasePart") and m or (m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildOfClass("BasePart")))
+                            if pp then pcall(function()pp.CFrame=dest end) end
+                        end
+                    end
+                end
+                -- pets inside Gameplay folders
+                for _,v in ipairs(workspace:GetChildren()) do
+                    if v.Name:match("^Gameplay%d+$") then
+                        for _,fname in ipairs(PET_FOLDERS) do
+                            local f=v:FindFirstChild(fname)
+                            if f then
+                                for _,m in ipairs(f:GetChildren()) do
+                                    local pp=m:IsA("BasePart") and m or (m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildOfClass("BasePart")))
+                                    if pp then pcall(function()pp.CFrame=dest end) end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(0.1)
     end
 end)
 
