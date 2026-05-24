@@ -363,7 +363,7 @@ task.spawn(function()
         local hrp=char and char:FindFirstChild("HumanoidRootPart")
         if hrp then
             local origin=hrp.CFrame
-            pcall(function()hrp.CFrame=origin*CFrame.new(10,0,0)end)
+            pcall(function()hrp.CFrame=origin*CFrame.new(50,0,0)end)
             task.wait(2)
             pcall(function()hrp.CFrame=origin end)
         end
