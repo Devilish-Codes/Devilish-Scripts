@@ -103,37 +103,42 @@ end)
 T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
 pan.Size=UDim2.new(0,220,0,yP+6)
 
--- gun loop: cycles enemies one at a time, no artificial wait in hot path
--- InvokeServer naturally throttles to server response rate
-local eidx=1
+-- status + equip loop
 task.spawn(function()
     while true do
-        if hitRE and S.gun then
+        if hitRE then
             local char=PL.Character
             if char then
                 local gun=char:FindFirstChild("SlimeGun") or PL.Backpack:FindFirstChild("SlimeGun")
                 if gun and gun.Parent~=char then gun.Parent=char end
             end
-            if #eids>0 then
-                if eidx>#eids then eidx=1 end
-                local id=eids[eidx] eidx=eidx+1
-                if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",id)end) end
-                shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id)
-                lgun.Text="FIRE "..#eids.."t" lgun.TextColor3=Color3.fromRGB(80,230,80)
-            else
-                lgun.Text="FIRE 0t" lgun.TextColor3=Color3.fromRGB(230,180,80)
-                task.wait(0.1)
-            end
-        else
-            if hitRE then
-                lgun.Text="RDY "..#eids.."t" lgun.TextColor3=Color3.fromRGB(160,220,160)
-            else
-                lgun.Text="NO_RE E:"..#eids lgun.TextColor3=Color3.fromRGB(230,80,80)
-            end
-            task.wait(0.1)
-        end
+            if S.gun and #eids>0 then lgun.Text="FIRE "..#eids.."t" lgun.TextColor3=Color3.fromRGB(80,230,80)
+            elseif S.gun then lgun.Text="FIRE 0t" lgun.TextColor3=Color3.fromRGB(230,180,80)
+            else lgun.Text="RDY "..#eids.."t" lgun.TextColor3=Color3.fromRGB(160,220,160) end
+        else lgun.Text="NO_RE E:"..#eids lgun.TextColor3=Color3.fromRGB(230,80,80) end
+        task.wait(0.1)
     end
 end)
+
+-- 7 parallel workers each doing sync try→confirm independently
+-- Lua is single-threaded so eidx reads/writes are safe between InvokeServer yields
+local eidx=1
+for _=1,7 do
+    task.spawn(function()
+        while true do
+            if S.gun and hitRE and #eids>0 then
+                local i=eidx eidx=eidx%#eids+1
+                local id=eids[i]
+                if id then
+                    if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",id)end) end
+                    shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id)
+                end
+            else
+                task.wait(0.05)
+            end
+        end
+    end)
+end
 
 task.spawn(function()
     while true do
