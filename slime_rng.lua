@@ -138,9 +138,17 @@ local function hookRE(re)
         if isGoop or isCoin then
             lGoopKills.Text="a1="..s(a1)
             if type(a2)=="table" then
+                local keys={"amount","Amount","goop","Goop","value","Value","reward","Reward","count","Count","currency","Currency","quantity","Quantity"}
                 local parts={}
-                for k,v in pairs(a2) do parts[#parts+1]=tostring(k).."="..tostring(v) end
-                lGoopX2.Text=table.concat(parts," | ")
+                for _,k in ipairs(keys) do
+                    local ok,v=pcall(function()return rawget(a2,k)end)
+                    if ok and v~=nil then parts[#parts+1]=k.."="..tostring(v) end
+                end
+                for i=1,6 do
+                    local ok,v=pcall(function()return rawget(a2,i)end)
+                    if ok and v~=nil then parts[#parts+1]="["..i.."]="..tostring(v) end
+                end
+                lGoopX2.Text=#parts>0 and table.concat(parts," | ") or "no readable keys"
                 lGoopMin.Text="(table above)"
             else
                 lGoopX2.Text="a2="..s(a2).." a3="..s(a3)
