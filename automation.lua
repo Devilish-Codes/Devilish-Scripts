@@ -4,7 +4,7 @@ local PL=game:GetService("Players").LocalPlayer
 local rem=RS:WaitForChild("RemoteEvents",10)
 if not rem then return end
 local function F(n,...)local r=rem:FindFirstChild(n)if r and r:IsA("RemoteEvent")then r:FireServer(...)end end
-local S={up=false,bs=false,mf=false,gm=false,afk=false,tm=false,ta=false,tn=false,tb=false}
+local S={up=false,ua=false,bs=false,mf=false,gm=false,afk=false,tm=false,ta=false,tn=false,tb=false}
 local g=Instance.new("ScreenGui")
 g.Name="AutoGui" g.ResetOnSpawn=false
 pcall(function()g.Parent=gethui()end)
@@ -68,13 +68,15 @@ for _,rf in ipairs(rfs)do rf()end
 task.wait(0.1) g:Destroy()
 end)
 
-T("Upgrades","up"); T("Beast Stage","bs"); T("Mark Fire","mf"); T("Gain Miasma","gm"); T("Anti-AFK","afk")
+T("Upgrades","up"); T("Ash Upgrades","ua"); T("Beast Stage","bs"); T("Mark Fire","mf"); T("Gain Miasma","gm"); T("Anti-AFK","afk")
 local sep=Instance.new("Frame") sep.Size=UDim2.new(1,-10,0,1) sep.Position=UDim2.new(0,5,0,yP+3) sep.BackgroundColor3=Color3.fromRGB(55,55,55) sep.BorderSizePixel=0 sep.Parent=pan yP=yP+10
 T("TP Miasma","tm"); T("TP Ash","ta"); T("TP Manual","tn"); T("TP Beast","tb")
 pan.Size=UDim2.new(0,200,0,yP+6)
 
 local UP={"MiasmaMiasmaMultiplier","MiasmaLuckMultipleir","MiasmaQiMultiplier"}
-task.spawn(function()while true do if S.up then for _,id in ipairs(UP)do F("PurchaseUpgrade",id,true) task.wait(0.05)end end task.wait(1)end end)
+local AS={"AshAshMultiplier","AshLuckMultiplier","AshQiMultiplier"}
+task.spawn(function()while true do if S.up then for _,id in ipairs(UP)do F("PurchaseUpgrade",id,false) task.wait()end else task.wait(0.5)end end end)
+task.spawn(function()while true do if S.ua then for _,id in ipairs(AS)do F("PurchaseUpgrade",id,false) task.wait()end else task.wait(0.5)end end end)
 task.spawn(function()while true do if S.bs then F("SetBeastStage",200)end task.wait(5)end end)
 task.spawn(function()while true do if S.mf then F("MiasmaMarkPress") F("AshMarkPress") F("CultivationManualRerollPulse")end task.wait(0.5)end end)
 task.spawn(function()while true do if S.gm then F("GainMiasma")end task.wait()end end)
