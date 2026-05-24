@@ -108,9 +108,12 @@ minBtn.MouseButton1Click:Connect(function()pan.Visible=false bubble.Visible=true
 bubble.MouseButton1Click:Connect(function()bubble.Visible=false pan.Visible=true end)
 
 -- tab buttons
-local tabCtrl=Instance.new("TextButton") tabCtrl.Size=UDim2.new(0,68,0,24) tabCtrl.Position=UDim2.new(0,5,0,34) tabCtrl.TextSize=11 tabCtrl.Font=Enum.Font.GothamBold tabCtrl.BorderSizePixel=0 tabCtrl.Text="Controls" tabCtrl.Parent=pan Instance.new("UICorner",tabCtrl).CornerRadius=UDim.new(0,4)
-local tabStats=Instance.new("TextButton") tabStats.Size=UDim2.new(0,68,0,24) tabStats.Position=UDim2.new(0,76,0,34) tabStats.TextSize=11 tabStats.Font=Enum.Font.GothamBold tabStats.BorderSizePixel=0 tabStats.Text="Stats" tabStats.Parent=pan Instance.new("UICorner",tabStats).CornerRadius=UDim.new(0,4)
-local tabServer=Instance.new("TextButton") tabServer.Size=UDim2.new(0,68,0,24) tabServer.Position=UDim2.new(0,147,0,34) tabServer.TextSize=11 tabServer.Font=Enum.Font.GothamBold tabServer.BorderSizePixel=0 tabServer.Text="Server" tabServer.Parent=pan Instance.new("UICorner",tabServer).CornerRadius=UDim.new(0,4)
+local function mkTab(lbl,x,w)
+    local b=Instance.new("TextButton") b.Size=UDim2.new(0,w,0,24) b.Position=UDim2.new(0,x,0,34) b.BackgroundColor3=Color3.fromRGB(30,30,30) b.TextColor3=Color3.fromRGB(130,130,130) b.TextSize=11 b.Font=Enum.Font.GothamBold b.BorderSizePixel=0 b.Text=lbl b.Parent=pan Instance.new("UICorner",b).CornerRadius=UDim.new(0,4) return b
+end
+local tabCtrl=mkTab("Controls",5,70)
+local tabStats=mkTab("Stats",78,70)
+local tabServer=mkTab("Server",151,69)
 
 -- controls frame (tab 1)
 local ctrlFrame=Instance.new("Frame") ctrlFrame.Size=UDim2.new(1,0,0,10) ctrlFrame.Position=UDim2.new(0,0,0,62) ctrlFrame.BackgroundTransparency=1 ctrlFrame.BorderSizePixel=0 ctrlFrame.Parent=pan
