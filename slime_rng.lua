@@ -125,36 +125,19 @@ task.spawn(function()
     end
 end)
 
--- reward tracker: hook hitRE.OnClientEvent for goop/coin rewards
-local goopKills,goopX2,coinTotal,rewardStart=0,0,0,nil
+-- reward tracker: raw diagnostic — shows last event args in GUI
 task.spawn(function()
     while not hitRE do task.wait(0.5) end
-    rewardStart=tick()
-    hitRE.OnClientEvent:Connect(function(a1,a2,a3)
-        if type(a1)=="number" and a2=="goop" then
-            -- (multiplier, "goop", enemyId)
-            goopKills=goopKills+1
-            if a1>=2 then goopX2=goopX2+1 end
-        elseif a1=="coinRewarded" then
-            coinTotal=coinTotal+(type(a2)=="number" and a2 or 1)
+    hitRE.OnClientEvent:Connect(function(...)
+        local args={...}
+        local parts={}
+        for _,v in ipairs(args) do
+            parts[#parts+1]=typeof(v)..":"..tostring(v)
         end
+        local line=table.concat(parts," | ")
+        lGoopKills.Text=line
+        lGoopMin.Text="^last event"
     end)
-    while true do
-        task.wait(1)
-        local el=tick()-(rewardStart or tick())
-        if el>=10 then
-            local gpm=goopKills/el*60
-            local cpm=coinTotal/el*60
-            local function fmt(n)
-                if n>=1e6 then return string.format("%.1fM",n/1e6)
-                elseif n>=1e3 then return string.format("%.1fK",n/1e3)
-                else return tostring(math.floor(n)) end
-            end
-            lGoopKills.Text="Goop kills: "..goopKills.." (x2:"..goopX2..")"
-            lGoopMin.Text="Goop/min:   "..fmt(gpm).." kills"
-            lCoinMin.Text="Coin/min:   "..fmt(cpm)
-        end
-    end
 end)
 
 -- gun: focus one target until dead, then immediately next; keep firing at last target if eids empty
