@@ -356,16 +356,16 @@ end
 PL.Idled:Connect(vuClick)
 -- fallback VU click every 10 min
 task.spawn(function()while true do task.wait(600) vuClick() end end)
--- game-specific: teleport away and back every 10 min to force position change
+-- game-specific: walk 1 stud forward/back alternating every 5 min
 task.spawn(function()
-    while true do task.wait(600)
+    local dir=1
+    while true do task.wait(300)
         local char=PL.Character
         local hrp=char and char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local origin=hrp.CFrame
-            pcall(function()hrp.CFrame=origin*CFrame.new(50,0,0)end)
-            task.wait(2)
-            pcall(function()hrp.CFrame=origin end)
+        local hum=char and char:FindFirstChildOfClass("Humanoid")
+        if hrp and hum then
+            pcall(function()hum:MoveTo(hrp.Position+hrp.CFrame.LookVector*dir)end)
+            dir=-dir
         end
     end
 end)
