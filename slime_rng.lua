@@ -115,14 +115,17 @@ local function mkStat(txt)
     local l=Instance.new("TextLabel") l.Size=UDim2.new(1,-10,0,20) l.Position=UDim2.new(0,5,0,yS) l.BackgroundColor3=Color3.fromRGB(28,28,28) l.TextColor3=Color3.fromRGB(160,220,160) l.Text=txt l.TextSize=11 l.Font=Enum.Font.Gotham l.BorderSizePixel=0 l.TextXAlignment=Enum.TextXAlignment.Left l.Parent=statsFrame
     local p=Instance.new("UIPadding",l) p.PaddingLeft=UDim.new(0,6) Instance.new("UICorner",l).CornerRadius=UDim.new(0,4) yS=yS+23 return l
 end
-local lGoop=mkStat("Goop:     --")
-local lCoin=mkStat("Coin:     --")
-local lGoopMin=mkStat("Goop/min: --")
-local lCoinMin=mkStat("Coin/min: --")
-local lGoopHr=mkStat("Goop/hr:  --")
-local lCoinHr=mkStat("Coin/hr:  --")
-local lGoopDay=mkStat("Goop/day: --")
-local lCoinDay=mkStat("Coin/day: --")
+local function mkPair(tL,tR)
+    local function mk(txt,xs,xo)
+        local l=Instance.new("TextLabel") l.Size=UDim2.new(0.5,-7,0,20) l.Position=UDim2.new(xs,xo,0,yS) l.BackgroundColor3=Color3.fromRGB(28,28,28) l.TextColor3=Color3.fromRGB(160,220,160) l.Text=txt l.TextSize=11 l.Font=Enum.Font.Gotham l.BorderSizePixel=0 l.TextXAlignment=Enum.TextXAlignment.Left l.Parent=statsFrame
+        Instance.new("UIPadding",l).PaddingLeft=UDim.new(0,5) Instance.new("UICorner",l).CornerRadius=UDim.new(0,4) return l
+    end
+    local lL=mk(tL,0,5) local lR=mk(tR,0.5,2) yS=yS+23 return lL,lR
+end
+local lCoin,lGoop=mkPair("Coin: --","Goop: --")
+local lCoinMin,lGoopMin=mkPair("/min --","/min --")
+local lCoinHr,lGoopHr=mkPair("/hr  --","/hr  --")
+local lCoinDay,lGoopDay=mkPair("/day --","/day --")
 local lSession=mkStat("Session:  0:00")
 local resetBtn=Instance.new("TextButton") resetBtn.Size=UDim2.new(1,-10,0,22) resetBtn.Position=UDim2.new(0,5,0,yS) resetBtn.BackgroundColor3=Color3.fromRGB(40,40,80) resetBtn.TextColor3=Color3.fromRGB(150,150,255) resetBtn.Text="Reset Session" resetBtn.TextSize=11 resetBtn.Font=Enum.Font.Gotham resetBtn.BorderSizePixel=0 resetBtn.Parent=statsFrame Instance.new("UICorner",resetBtn).CornerRadius=UDim.new(0,4) yS=yS+26
 statsFrame.Size=UDim2.new(1,0,0,yS+4)
@@ -203,14 +206,14 @@ task.spawn(function()
     while true do
         task.wait(1)
         local el=math.max(tick()-rewardStart,1)
-        lGoop.Text="Goop:     "..fmt(goopTotal)
-        lCoin.Text="Coin:     "..fmt(coinTotal)
-        lGoopMin.Text="Goop/min: "..fmt(goopTotal/el*60)
-        lCoinMin.Text="Coin/min: "..fmt(coinTotal/el*60)
-        lGoopHr.Text="Goop/hr:  "..fmt(goopTotal/el*3600)
-        lCoinHr.Text="Coin/hr:  "..fmt(coinTotal/el*3600)
-        lGoopDay.Text="Goop/day: "..fmt(goopTotal/el*86400)
-        lCoinDay.Text="Coin/day: "..fmt(coinTotal/el*86400)
+        lCoin.Text="Coin: "..fmt(coinTotal)
+        lGoop.Text="Goop: "..fmt(goopTotal)
+        lCoinMin.Text="/min "..fmt(coinTotal/el*60)
+        lGoopMin.Text="/min "..fmt(goopTotal/el*60)
+        lCoinHr.Text="/hr  "..fmt(coinTotal/el*3600)
+        lGoopHr.Text="/hr  "..fmt(goopTotal/el*3600)
+        lCoinDay.Text="/day "..fmt(coinTotal/el*86400)
+        lGoopDay.Text="/day "..fmt(goopTotal/el*86400)
         lSession.Text="Session:  "..fmtTime(el)
     end
 end)
