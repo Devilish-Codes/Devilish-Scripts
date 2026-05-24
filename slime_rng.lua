@@ -103,20 +103,7 @@ end)
 T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
 pan.Size=UDim2.new(0,220,0,yP+6)
 
--- tryFireSlimeGun loop: 20 Hz, spawned per enemy so InvokeServer doesn't block
-task.spawn(function()
-    while true do
-        if S.gun and gunRF and #eids>0 then
-            for _,id in ipairs(eids) do
-                local eid=id
-                task.spawn(function()pcall(function()gunRF:InvokeServer("tryFireSlimeGun",eid)end)end)
-            end
-        end
-        task.wait(0.05)
-    end
-end)
-
--- confirmHit loop: 50 Hz, all enemies simultaneously
+-- gun loop: 50 Hz outer tick, one coroutine per enemy doing sync try→confirm
 task.spawn(function()
     while true do
         if hitRE then
@@ -126,10 +113,15 @@ task.spawn(function()
                 if gun and gun.Parent~=char then gun.Parent=char end
             end
             if S.gun and #eids>0 then
-                for _,id in ipairs(eids) do
-                    shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id)
+                local snap=eids
+                for _,id in ipairs(snap) do
+                    local eid=id
+                    task.spawn(function()
+                        if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",eid)end) end
+                        shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,eid)
+                    end)
                 end
-                lgun.Text="FIRE "..#eids.."t" lgun.TextColor3=Color3.fromRGB(80,230,80)
+                lgun.Text="FIRE "..#snap.."t" lgun.TextColor3=Color3.fromRGB(80,230,80)
             elseif S.gun then
                 lgun.Text="FIRE 0t" lgun.TextColor3=Color3.fromRGB(230,180,80)
             else
