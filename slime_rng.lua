@@ -1,6 +1,7 @@
 local RS=game:GetService("ReplicatedStorage")
 local UIS=game:GetService("UserInputService")
 local PL=game:GetService("Players").LocalPlayer
+local RunService=game:GetService("RunService")
 
 local rollRF=nil
 task.spawn(function()
@@ -146,6 +147,7 @@ local lCoinMin,lGoopMin=mkPair("/min --","/min --")
 local lCoinHr,lGoopHr=mkPair("/hr  --","/hr  --")
 local lCoinDay,lGoopDay=mkPair("/day --","/day --")
 local lSession=mkStat("Session:  0:00")
+local lFps=mkStat("FPS:      --")
 local resetBtn=Instance.new("TextButton") resetBtn.Size=UDim2.new(1,-10,0,22) resetBtn.Position=UDim2.new(0,5,0,yS) resetBtn.BackgroundColor3=Color3.fromRGB(40,40,80) resetBtn.TextColor3=Color3.fromRGB(150,150,255) resetBtn.Text="Reset Session" resetBtn.TextSize=11 resetBtn.Font=Enum.Font.Gotham resetBtn.BorderSizePixel=0 resetBtn.Parent=statsFrame Instance.new("UICorner",resetBtn).CornerRadius=UDim.new(0,4) yS=yS+26
 statsFrame.Size=UDim2.new(1,0,0,yS+4)
 
@@ -261,6 +263,9 @@ task.spawn(function()
         end
     end)
 end)
+local frameCount=0
+RunService.Heartbeat:Connect(function() frameCount=frameCount+1 end)
+
 task.spawn(function()
     local sfx={"K","M","B","T","Qa","Qi","Sx","Sp","Oc","No","Dc"}
     local function fmt(n)
@@ -287,6 +292,7 @@ task.spawn(function()
         lCoinDay.Text="/day "..fmt(coinTotal/el*86400)
         lGoopDay.Text="/day "..fmt(goopTotal/el*86400)
         lSession.Text="Session:  "..fmtTime(el)
+        lFps.Text="FPS:      "..frameCount frameCount=0
     end
 end)
 
