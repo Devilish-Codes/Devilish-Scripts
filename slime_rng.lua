@@ -120,30 +120,16 @@ task.spawn(function()
     end
 end)
 
--- dedicated workers per enemy — all enemies attacked fully in parallel
-local WPER=3 -- workers per enemy; raise if still too slow
-local activeEids={}
+local eidx=1
 task.spawn(function()
     while true do
-        local nxt={}
-        for _,id in ipairs(eids) do nxt[id]=true end
-        for id in pairs(nxt) do
-            if not activeEids[id] then
-                for _=1,WPER do
-                    local eid=id
-                    task.spawn(function()
-                        while activeEids[eid] do
-                            if S.gun and hitRE then
-                                if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",eid)end) end
-                                shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,eid)
-                            else task.wait(0.05) end
-                        end
-                    end)
-                end
-            end
+        if hitRE and S.gun and #eids>0 then
+            if eidx>#eids then eidx=1 end
+            local id=eids[eidx] eidx=eidx+1
+            if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",id)end) end
+            shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id)
         end
-        activeEids=nxt
-        task.wait(0.5)
+        task.wait(0.05)
     end
 end)
 
