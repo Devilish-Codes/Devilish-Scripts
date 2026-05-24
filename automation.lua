@@ -39,11 +39,14 @@ end
 loadPosFile()
 
 local g=Instance.new("ScreenGui")
-g.Name="AutoGui" g.ResetOnSpawn=false
+g.Name="AutoGui" g.ResetOnSpawn=false g.DisplayOrder=1
 pcall(function()g.Parent=gethui()end)
 if not g.Parent then g.Parent=game:GetService("CoreGui")end
 
-local blackScreen=Instance.new("Frame") blackScreen.Size=UDim2.new(1,0,1,0) blackScreen.BackgroundColor3=Color3.fromRGB(0,0,0) blackScreen.BorderSizePixel=0 blackScreen.Visible=S.black blackScreen.Parent=g
+local blackGui=Instance.new("ScreenGui") blackGui.Name="AutoBlack" blackGui.ResetOnSpawn=false blackGui.IgnoreGuiInset=true blackGui.DisplayOrder=0
+pcall(function()blackGui.Parent=gethui()end)
+if not blackGui.Parent then blackGui.Parent=game:GetService("CoreGui")end
+local blackScreen=Instance.new("Frame") blackScreen.Size=UDim2.new(1,0,1,0) blackScreen.BackgroundColor3=Color3.fromRGB(0,0,0) blackScreen.BorderSizePixel=0 blackScreen.Visible=S.black blackScreen.Parent=blackGui
 
 local pan=Instance.new("Frame")
 pan.Size=UDim2.new(0,200,0,10) pan.Position=UDim2.new(0,12,0,12)
@@ -153,11 +156,22 @@ savePosBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- anti-AFK: right-click via VirtualUser on Idled event
-PL.Idled:Connect(function()
-    VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-    task.wait(1)
-    VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+-- anti-AFK: event-driven + fallback timer + game-specific jump
+local function vuClick()
+    pcall(function()
+        VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+        task.wait(1)
+        VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+    end)
+end
+PL.Idled:Connect(vuClick)
+task.spawn(function()while true do task.wait(600) vuClick() end end)
+task.spawn(function()
+    while true do task.wait(240)
+        local char=PL.Character
+        local hum=char and char:FindFirstChildOfClass("Humanoid")
+        if hum then pcall(function()hum.Jump=true end) end
+    end
 end)
 
 -- auto return loop
