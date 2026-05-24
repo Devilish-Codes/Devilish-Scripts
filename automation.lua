@@ -1,166 +1,47 @@
--- Immortality Incremental | Automation Script
--- Paste directly into Delta
-
--- ── CONFIG ────────────────────────────────────────────────────────────────────
-local AUTO_QI       = true   -- Auto gain Qi
-local AUTO_MARKS    = true   -- Auto press all mark boards
-local AUTO_REALM    = true   -- Auto advance realm
-local AUTO_UPGRADE  = true   -- Auto click upgrade buttons on all boards
-local AUTO_BEAST    = true   -- Auto fight beast
-
-local QI_INTERVAL      = 0.05  -- seconds between Qi fires
-local MARK_INTERVAL    = 0.3   -- seconds between each mark press cycle
-local UPGRADE_INTERVAL = 0.5   -- seconds between upgrade click cycles
-local BEAST_INTERVAL   = 0.5   -- seconds between beast attacks
--- ──────────────────────────────────────────────────────────────────────────────
-
-local RS      = game:GetService("ReplicatedStorage")
-local remotes = RS:WaitForChild("RemoteEvents", 10)
-if not remotes then
-    warn("[Auto] RemoteEvents folder not found — are you in the right game?")
-    return
+local RS=game:GetService("ReplicatedStorage")
+local UIS=game:GetService("UserInputService")
+local PL=game:GetService("Players").LocalPlayer
+local rem=RS:WaitForChild("RemoteEvents",10)
+if not rem then return end
+local function F(n,...)local r=rem:FindFirstChild(n)if r and r:IsA("RemoteEvent")then r:FireServer(...)end end
+local S={up=false,bs=false,mf=false,tm=false,ta=false,tn=false,tb=false}
+local g=Instance.new("ScreenGui")
+g.Name="AutoGui" g.ResetOnSpawn=false
+pcall(function()g.Parent=gethui()end)
+if not g.Parent then g.Parent=game:GetService("CoreGui")end
+local pan=Instance.new("Frame")
+pan.Size=UDim2.new(0,200,0,10) pan.Position=UDim2.new(0,12,0,12)
+pan.BackgroundColor3=Color3.fromRGB(20,20,20) pan.BorderSizePixel=0 pan.Parent=g
+Instance.new("UICorner",pan).CornerRadius=UDim.new(0,8)
+local ttl=Instance.new("TextLabel")
+ttl.Size=UDim2.new(1,0,0,30) ttl.BackgroundColor3=Color3.fromRGB(35,35,35)
+ttl.TextColor3=Color3.fromRGB(220,220,220) ttl.Text="[ AUTOMATION ]"
+ttl.TextSize=14 ttl.Font=Enum.Font.GothamBold ttl.BorderSizePixel=0 ttl.Parent=pan
+Instance.new("UICorner",ttl).CornerRadius=UDim.new(0,8)
+local dr,ds,ps
+ttl.InputBegan:Connect(function(i)if i.UserInputType==Enum.UserInputType.MouseButton1 then dr=true ds=i.Position ps=pan.Position end end)
+UIS.InputChanged:Connect(function(i)if dr and i.UserInputType==Enum.UserInputType.MouseMovement then local d=i.Position-ds pan.Position=UDim2.new(ps.X.Scale,ps.X.Offset+d.X,ps.Y.Scale,ps.Y.Offset+d.Y)end end)
+UIS.InputEnded:Connect(function(i)if i.UserInputType==Enum.UserInputType.MouseButton1 then dr=false end end)
+local yP=34
+local function T(lbl,key)
+local b=Instance.new("TextButton")
+b.Size=UDim2.new(1,-10,0,26) b.Position=UDim2.new(0,5,0,yP)
+b.BorderSizePixel=0 b.TextSize=12 b.Font=Enum.Font.Gotham b.Parent=pan
+Instance.new("UICorner",b).CornerRadius=UDim.new(0,4)
+local function rf()if S[key]then b.Text=lbl.." ON" b.BackgroundColor3=Color3.fromRGB(25,70,25) b.TextColor3=Color3.fromRGB(80,230,80)else b.Text=lbl.." OFF" b.BackgroundColor3=Color3.fromRGB(70,25,25) b.TextColor3=Color3.fromRGB(230,80,80)end end
+b.MouseButton1Click:Connect(function()S[key]=not S[key] rf()end)
+rf() yP=yP+30
 end
-
-local function fire(name, ...)
-    local r = remotes:FindFirstChild(name)
-    if r and r:IsA("RemoteEvent") then
-        r:FireServer(...)
-        return true
-    end
-    return false
-end
-
-local MARK_EVENTS = {
-    "InsightMarkPress",
-    "EssenceMarkPress",
-    "SoulfireMarkPress",
-    "KarmaMarkPress",
-    "NebulaMarkPress",
-    "QuasarMarkPress",
-    "MiasmaMarkPress",
-    "AshMarkPress",
-    "StarsMarkPress",
-    "RealmPress",
-}
-
-local UPGRADE_BUTTON_NAMES = {
-    "MaxPurchaseButton",
-    "PurchaseButton1",
-    "PurchaseButton2",
-    "PurchaseButton3",
-    "PurchaseButton4",
-    "PurchaseButton5",
-    "PurchaseButton6",
-    "SinglePurchaseButton",
-    "UpgradeButton",
-}
-
--- ── Auto Qi ───────────────────────────────────────────────────────────────────
-if AUTO_QI then
-    task.spawn(function()
-        while task.wait(QI_INTERVAL) do
-            fire("GainQi")
-        end
-    end)
-    print("[Auto] Qi: ON")
-end
-
--- ── Auto Marks ────────────────────────────────────────────────────────────────
-if AUTO_MARKS then
-    task.spawn(function()
-        while true do
-            for _, name in ipairs(MARK_EVENTS) do
-                fire(name)
-                task.wait(0.05)
-            end
-            task.wait(MARK_INTERVAL)
-        end
-    end)
-    print("[Auto] Marks: ON")
-end
-
--- ── Auto Realm ────────────────────────────────────────────────────────────────
-if AUTO_REALM then
-    task.spawn(function()
-        while task.wait(MARK_INTERVAL) do
-            fire("RealmPress")
-        end
-    end)
-    print("[Auto] Realm: ON")
-end
-
--- ── Auto Upgrade ──────────────────────────────────────────────────────────────
-if AUTO_UPGRADE then
-    task.spawn(function()
-        while true do
-            for _, obj in ipairs(workspace:GetDescendants()) do
-                if obj:IsA("TextButton") then
-                    for _, bname in ipairs(UPGRADE_BUTTON_NAMES) do
-                        if obj.Name == bname then
-                            pcall(function()
-                                if firesignal then
-                                    firesignal(obj.MouseButton1Click)
-                                else
-                                    obj.MouseButton1Click:Fire()
-                                end
-                            end)
-                            break
-                        end
-                    end
-                end
-            end
-            task.wait(UPGRADE_INTERVAL)
-        end
-    end)
-    print("[Auto] Upgrades: ON")
-end
-
--- ── Auto Beast ────────────────────────────────────────────────────────────────
-if AUTO_BEAST then
-    task.spawn(function()
-        while task.wait(BEAST_INTERVAL) do
-            -- Find beast stage from the BeastStageGui label
-            local stageNum = nil
-            local bsg = workspace:FindFirstChild("BeastStageGui", true)
-            if bsg then
-                for _, v in ipairs(bsg:GetDescendants()) do
-                    if v:IsA("TextLabel") then
-                        local n = tonumber(v.Text:match("(%d+)"))
-                        if n and n > 0 then
-                            stageNum = n
-                            break
-                        end
-                    end
-                end
-            end
-
-            -- Also try clicking any beast attack buttons in workspace
-            for _, obj in ipairs(workspace:GetDescendants()) do
-                if obj:IsA("TextButton") and (
-                    obj.Name:lower():find("attack") or
-                    obj.Name:lower():find("fight") or
-                    obj.Name:lower():find("beast") or
-                    obj.Name:lower():find("hunt")
-                ) then
-                    pcall(function()
-                        if firesignal then
-                            firesignal(obj.MouseButton1Click)
-                        else
-                            obj.MouseButton1Click:Fire()
-                        end
-                    end)
-                end
-            end
-
-            if stageNum then
-                fire("SetBeastStage", stageNum)
-            else
-                -- Try firing with no args as fallback
-                fire("SetBeastStage")
-            end
-        end
-    end)
-    print("[Auto] Beast: ON")
-end
-
-print("[Auto] Automation running. Set AUTO_X = false at the top to disable modules.")
+T("Upgrades","up") T("Beast Stage","bs") T("Mark Fire","mf")
+local sep=Instance.new("Frame") sep.Size=UDim2.new(1,-10,0,1) sep.Position=UDim2.new(0,5,0,yP+3) sep.BackgroundColor3=Color3.fromRGB(55,55,55) sep.BorderSizePixel=0 sep.Parent=pan yP=yP+10
+T("TP Miasma","tm") T("TP Ash","ta") T("TP Manual","tn") T("TP Beast","tb")
+pan.Size=UDim2.new(0,200,0,yP+6)
+local UP={"MiasmaMiasmaMultiplier","MiasmaLuckMultiplier","MiasmaQiMultiplier"}
+task.spawn(function()while true do if S.up then for _,id in ipairs(UP)do F("PurchaseUpgrade",id,true) task.wait(0.05)end end task.wait(1)end end)
+task.spawn(function()while true do if S.bs then F("SetBeastStage",200)end task.wait(5)end end)
+task.spawn(function()while true do if S.mf then F("MiasmaMarkPress") F("AshMarkPress") F("CultivationManualRerollPulse")end task.wait(0.5)end end)
+local ch=PL.Character or PL.CharacterAdded:Wait()
+local hr=ch:WaitForChild("HumanoidRootPart")
+local TP={{k="tm",p=Vector3.new(402.5,10.5,549),d=6},{k="ta",p=Vector3.new(488,10.5,532.3),d=6},{k="tn",p=Vector3.new(390.6,12,598.2),d=6},{k="tb",p=Vector3.new(172.1,18.5,-31.3),d=15}}
+task.spawn(function()local i=1 while true do local t=TP[i] if S[t.k]then hr.CFrame=CFrame.new(t.p) task.wait(t.d)else task.wait(0.1)end i=i%#TP+1 end end)
+warn("[Auto] Ready.")
