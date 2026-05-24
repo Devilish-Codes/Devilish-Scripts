@@ -13,12 +13,12 @@ task.spawn(function()
     end
 end)
 
-local hitRE,gunRF,invRF,shotCount=nil,nil,nil,0
-local S={gun=false,roll=false,afk=false,collect=false,slimes=false}
+local hitRE,gunRF,shotCount=nil,nil,0
+local S={gun=false,roll=false,afk=false,collect=false}
 local rfs={}
 
 local SAVE_FILE="slime_rng_state.txt"
-local SKEYS={"gun","roll","afk","collect","slimes"}
+local SKEYS={"gun","roll","afk","collect"}
 local function saveState()
     local parts={}
     for _,k in ipairs(SKEYS) do parts[#parts+1]=k.."="..(S[k] and "1" or "0") end
@@ -45,9 +45,6 @@ task.spawn(function()
             end
             if v:IsA("RemoteFunction") and v.Parent and v.Parent.Name=="SlimeGunService" then
                 gunRF=v
-            end
-            if v:IsA("RemoteFunction") and v.Parent and v.Parent.Name=="InventoryService" then
-                invRF=v
             end
         end
         task.wait(3)
@@ -123,7 +120,7 @@ end
 stopBtn.MouseButton1Click:Connect(function()
     for k in pairs(S)do S[k]=false end for _,rf in ipairs(rfs)do rf()end task.wait(0.1) g:Destroy()
 end)
-T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk"); T("Slime Tele","slimes")
+T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
 pan.Size=UDim2.new(0,220,0,yP+6)
 
 -- equip + status
@@ -213,66 +210,6 @@ task.spawn(function()
     end
 end)
 
--- slime tele: on new gun target, teleport player to enemy, re-equip slimes there, teleport back
-local lastTeleTarget=nil
-task.spawn(function()
-    while true do
-        if S.slimes and invRF and gunTarget and gunTarget~=lastTeleTarget then
-            lastTeleTarget=gunTarget
-            -- find enemy position
-            local enemyPos=nil
-            for _,v in ipairs(workspace:GetChildren()) do
-                if v.Name:match("^Gameplay%d+$") then
-                    local ef=v:FindFirstChild("Enemies")
-                    if ef then
-                        local em=ef:FindFirstChild(tostring(gunTarget))
-                        if em then
-                            local rp=em:FindFirstChild("RootPart")
-                            if rp then enemyPos=rp.Position end
-                        end
-                    end
-                end
-            end
-            -- collect current slime GUIDs from workspace
-            local slimeIDs={}
-            for _,v in ipairs(workspace:GetChildren()) do
-                if v.Name:match("^Gameplay%d+$") then
-                    local sf=v:FindFirstChild("Slimes")
-                    if sf then
-                        for _,m in ipairs(sf:GetChildren()) do
-                            if m:IsA("Model") then slimeIDs[#slimeIDs+1]=m.Name end
-                        end
-                    end
-                end
-            end
-            local hrp=PL.Character and PL.Character:FindFirstChild("HumanoidRootPart")
-            if hrp and enemyPos and #slimeIDs>0 then
-                local savedCF=hrp.CFrame
-                local cam=workspace.CurrentCamera
-                local lockedCF=cam.CFrame
-                local RS2=game:GetService("RunService")
-                -- hold camera in place every frame during teleport
-                local camConn=RS2.RenderStepped:Connect(function() cam.CFrame=lockedCF end)
-                -- teleport to enemy
-                hrp.CFrame=CFrame.new(enemyPos+Vector3.new(0,3,0))
-                task.wait()
-                -- unequip all slots
-                for i=1,8 do pcall(function()invRF:InvokeServer("requestUnequip",i)end) end
-                task.wait()
-                -- re-equip each slime (spawns at player feet = on enemy)
-                for _,id in ipairs(slimeIDs) do
-                    pcall(function()invRF:InvokeServer("requestEquip",id)end)
-                end
-                task.wait()
-                -- teleport back and release camera
-                hrp.CFrame=savedCF
-                task.wait()
-                camConn:Disconnect()
-            end
-        end
-        task.wait(0.1)
-    end
-end)
 
 task.spawn(function()
     local function fmt(n)
