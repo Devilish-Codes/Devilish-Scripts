@@ -210,36 +210,40 @@ task.spawn(function()
     end
 end)
 
--- slime tele: force player slimes onto gun target every frame (overcomes server replication)
-local RS2=game:GetService("RunService")
-RS2.RenderStepped:Connect(function()
-    if not S.slimes or not gunTarget then return end
-    local dest=nil
-    for _,v in ipairs(workspace:GetChildren()) do
-        if v.Name:match("^Gameplay%d+$") then
-            local ef=v:FindFirstChild("Enemies")
-            if ef then
-                local em=ef:FindFirstChild(tostring(gunTarget))
-                if em then
-                    local rp=em:FindFirstChild("RootPart")
-                    if rp then dest=rp.CFrame+Vector3.new(0,2,0) end
+-- slime tele: firetouchinterest between player slimes and current enemy
+task.spawn(function()
+    while true do
+        if S.slimes and gunTarget then
+            local enemyPart=nil
+            for _,v in ipairs(workspace:GetChildren()) do
+                if v.Name:match("^Gameplay%d+$") then
+                    local ef=v:FindFirstChild("Enemies")
+                    if ef then
+                        local em=ef:FindFirstChild(tostring(gunTarget))
+                        if em then enemyPart=em:FindFirstChild("RootPart") or em:FindFirstChildOfClass("BasePart") end
+                    end
                 end
             end
-        end
-    end
-    if not dest then return end
-    for _,v in ipairs(workspace:GetChildren()) do
-        if v.Name:match("^Gameplay%d+$") then
-            local sf=v:FindFirstChild("Slimes")
-            if sf then
-                for _,m in ipairs(sf:GetChildren()) do
-                    if m:IsA("Model") then
-                        local rp=m:FindFirstChild("RootPart")
-                        if rp then pcall(function()rp.CFrame=dest end) end
+            if enemyPart then
+                for _,v in ipairs(workspace:GetChildren()) do
+                    if v.Name:match("^Gameplay%d+$") then
+                        local sf=v:FindFirstChild("Slimes")
+                        if sf then
+                            for _,m in ipairs(sf:GetChildren()) do
+                                if m:IsA("Model") then
+                                    local sp=m:FindFirstChild("RootPart") or m:FindFirstChildOfClass("BasePart")
+                                    if sp then
+                                        pcall(firetouchinterest, sp, enemyPart, 0)
+                                        pcall(firetouchinterest, enemyPart, sp, 0)
+                                    end
+                                end
+                            end
+                        end
                     end
                 end
             end
         end
+        task.wait(0.05)
     end
 end)
 
