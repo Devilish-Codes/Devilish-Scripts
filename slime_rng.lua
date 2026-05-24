@@ -34,13 +34,15 @@ end)
 local eids={}
 task.spawn(function()
     while true do
-        local zones=workspace:FindFirstChild("Zones") local t={}
-        if zones then
-            for _,z in ipairs(zones:GetChildren()) do
-                local ef=z:FindFirstChild("Enemies")
-                if ef then for _,e in ipairs(ef:GetChildren()) do local id=tonumber(e.Name) if id then t[#t+1]=id end end end
+        local t={}
+        for _,v in ipairs(workspace:GetDescendants()) do
+            if v.Name=="Enemies" and (v:IsA("Folder") or v:IsA("Model")) then
+                for _,e in ipairs(v:GetChildren()) do
+                    local id=tonumber(e.Name) if id then t[#t+1]=id end
+                end
             end
         end
+        if #t~=#eids then print("[Slime Auto] Enemies found: "..#t) end
         eids=t task.wait(2)
     end
 end)
