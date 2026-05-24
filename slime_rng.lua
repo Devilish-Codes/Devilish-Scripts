@@ -35,14 +35,20 @@ local eids={}
 task.spawn(function()
     while true do
         local t={}
-        for _,v in ipairs(workspace:GetDescendants()) do
-            if v.Name:lower()=="enemies" and (v:IsA("Folder") or v:IsA("Model")) then
-                for _,e in ipairs(v:GetChildren()) do
-                    local id=tonumber(e.Name) if id then t[#t+1]=id end
+        for _,v in ipairs(workspace:GetChildren()) do
+            if v.Name:match("^Gameplay%d+$") then
+                local ef=v:FindFirstChild("Enemies")
+                if ef then
+                    local kids=ef:GetChildren()
+                    local first=kids[1]
+                    print("[Slime Auto] "..v.Name..".Enemies: "..#kids.." children, first="..(first and first.Name or "none").." class="..(first and first.ClassName or "?"))
+                    for _,e in ipairs(kids) do
+                        local id=tonumber(e.Name) if id then t[#t+1]=id end
+                    end
                 end
             end
         end
-        if #t~=#eids then print("[Slime Auto] Enemies found: "..#t) end
+        if #t~=#eids then print("[Slime Auto] eids updated: "..#t) end
         eids=t task.wait(2)
     end
 end)
