@@ -116,14 +116,18 @@ pan.Size=UDim2.new(0,220,0,yP+6)
 
 task.spawn(function()
     while true do
-        if S.gun then
-            if hitRE then
+        if hitRE then
+            if S.gun then
                 for _,id in ipairs(eids) do
-                    if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",id)end) end
+                    if gunRF then task.spawn(function()pcall(function()gunRF:InvokeServer("tryFireSlimeGun",id)end)end) end
                     shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id)
                 end
-                lgun.Text="Gun: ACTIVE ("..#eids.." targets)" lgun.TextColor3=Color3.fromRGB(80,230,80)
-            else lgun.Text="Gun: Searching..." lgun.TextColor3=Color3.fromRGB(230,180,80) end
+                lgun.Text="FIRE "..#eids.."t RF:"..(gunRF and "Y" or "N") lgun.TextColor3=Color3.fromRGB(80,230,80)
+            else
+                lgun.Text="RDY "..#eids.."t RF:"..(gunRF and "Y" or "N") lgun.TextColor3=Color3.fromRGB(160,220,160)
+            end
+        else
+            lgun.Text="NO_RE E:"..#eids lgun.TextColor3=Color3.fromRGB(230,80,80)
         end
         task.wait()
     end
@@ -136,9 +140,14 @@ task.spawn(function()
     end
 end)
 
+local VU=game:GetService("VirtualUser")
 task.spawn(function()
     while true do task.wait(60)
-        if S.afk then local h=PL.Character and PL.Character:FindFirstChildOfClass("Humanoid") if h then h.Jump=true end end
+        if S.afk then pcall(function()
+            VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+            task.wait(0.1)
+            VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+        end) end
     end
 end)
 
