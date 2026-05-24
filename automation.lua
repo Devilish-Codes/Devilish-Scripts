@@ -4,7 +4,7 @@ local PL=game:GetService("Players").LocalPlayer
 local rem=RS:WaitForChild("RemoteEvents",10)
 if not rem then return end
 local function F(n,...)local r=rem:FindFirstChild(n)if r and r:IsA("RemoteEvent")then r:FireServer(...)end end
-local S={up=false,bs=false,mf=false,gm=false,tm=false,ta=false,tn=false,tb=false}
+local S={up=false,bs=false,mf=false,gm=false,afk=false,tm=false,ta=false,tn=false,tb=false}
 local g=Instance.new("ScreenGui")
 g.Name="AutoGui" g.ResetOnSpawn=false
 pcall(function()g.Parent=gethui()end)
@@ -32,7 +32,7 @@ local function rf()if S[key]then b.Text=lbl.." ON" b.BackgroundColor3=Color3.fro
 b.MouseButton1Click:Connect(function()S[key]=not S[key] rf()end)
 rf() yP=yP+30
 end
-T("Upgrades","up"); T("Beast Stage","bs"); T("Mark Fire","mf"); T("Gain Miasma","gm")
+T("Upgrades","up"); T("Beast Stage","bs"); T("Mark Fire","mf"); T("Gain Miasma","gm"); T("Anti-AFK","afk")
 local sep=Instance.new("Frame") sep.Size=UDim2.new(1,-10,0,1) sep.Position=UDim2.new(0,5,0,yP+3) sep.BackgroundColor3=Color3.fromRGB(55,55,55) sep.BorderSizePixel=0 sep.Parent=pan yP=yP+10
 T("TP Miasma","tm"); T("TP Ash","ta"); T("TP Manual","tn"); T("TP Beast","tb")
 pan.Size=UDim2.new(0,200,0,yP+6)
@@ -41,6 +41,7 @@ task.spawn(function()while true do if S.up then for _,id in ipairs(UP)do F("Purc
 task.spawn(function()while true do if S.bs then F("SetBeastStage",200)end task.wait(5)end end)
 task.spawn(function()while true do if S.mf then F("MiasmaMarkPress") F("AshMarkPress") F("CultivationManualRerollPulse")end task.wait(0.5)end end)
 task.spawn(function()while true do if S.gm then F("GainMiasma")end task.wait()end end)
+task.spawn(function()while true do task.wait(60) if S.afk then local h=PL.Character and PL.Character:FindFirstChildOfClass("Humanoid") if h then h.Jump=true end end end end)
 local ch=PL.Character or PL.CharacterAdded:Wait()
 local hr=ch:WaitForChild("HumanoidRootPart")
 local TP={{k="tm",p=Vector3.new(402.5,10.5,549),d=6},{k="ta",p=Vector3.new(488,10.5,532.3),d=6},{k="tn",p=Vector3.new(390.6,12,598.2),d=6},{k="tb",p=Vector3.new(172.1,18.5,-31.3),d=15}}
