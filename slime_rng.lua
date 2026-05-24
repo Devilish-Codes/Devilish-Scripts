@@ -15,18 +15,16 @@ local hitRE,shotCount=nil,0
 local S={gun=false,roll=false,afk=false}
 local rfs={}
 
-pcall(function()
-    local mt=getrawmetatable(game) local oldNC=mt.__namecall
-    setreadonly(mt,false)
-    mt.__namecall=function(self,...)
-        local args={...}
-        if getnamecallmethod()=="FireServer" and not hitRE and args[1]=="confirmHit" then
-            hitRE=self shotCount=(args[2] or 0)+1
-            setreadonly(mt,false) mt.__namecall=oldNC setreadonly(mt,true)
+task.spawn(function()
+    task.wait(1)
+    local bestN=-1
+    for _,v in ipairs(RS:GetDescendants()) do
+        if v:IsA("RemoteEvent") then
+            local n=v.Parent and tonumber(v.Parent.Name:match("^Gameplay(%d+)$"))
+            if n and n>bestN then hitRE=v bestN=n end
         end
-        return oldNC(self,...)
     end
-    setreadonly(mt,true)
+    if hitRE then print("[Slime Auto] Gun remote: Gameplay"..bestN) end
 end)
 
 local eids={}
@@ -47,18 +45,30 @@ local goopLbl=nil
 task.spawn(function()
     task.wait(3)
     local pg=PL:WaitForChild("PlayerGui")
-    for att=1,15 do
-        for _,v in ipairs(pg:GetDescendants()) do
-            if v.Name=="CounterRow" and v:IsA("Frame") then
-                local cam=workspace.CurrentCamera
-                if cam and v.AbsolutePosition.X<cam.ViewportSize.X*0.5 then
+    local lbls={}
+    for _=1,15 do
+        local cam=workspace.CurrentCamera
+        if cam then
+            for _,v in ipairs(pg:GetDescendants()) do
+                if v.Name=="CounterRow" and v:IsA("Frame") and v.AbsolutePosition.X<cam.ViewportSize.X*0.45 then
                     local amt=v:FindFirstChild("Amount")
-                    if amt then local l=amt:FindFirstChildOfClass("TextLabel") if l then goopLbl=l end end
+                    if amt then
+                        local l=amt:FindFirstChildOfClass("TextLabel")
+                        if l then local dup=false for _,x in ipairs(lbls)do if x==l then dup=true break end end if not dup then lbls[#lbls+1]=l end end
+                    end
                 end
             end
         end
-        if goopLbl then break end task.wait(2)
+        if #lbls>0 then break end task.wait(2)
     end
+    -- wait for goop to accumulate so it diverges from kill count, then pick max-value label
+    task.wait(15)
+    local best,bestV=nil,-1
+    for _,l in ipairs(lbls) do
+        if l.Parent then local n=tonumber((l.Text:gsub("[^%d]+","")))or 0 if n>bestV then best,bestV=l,n end end
+    end
+    goopLbl=best or lbls[1]
+    if goopLbl then print("[Slime Auto] Goop label locked ("..#lbls.." candidates, val="..bestV..")") end
 end)
 
 local g=Instance.new("ScreenGui") g.Name="SlimeGui" g.ResetOnSpawn=false
@@ -86,7 +96,7 @@ end
 local lpm=mkStat("Goop/min:  --")
 local lph=mkStat("Goop/hr:   --")
 local lpd=mkStat("Goop/day:  --")
-local lgun=mkStat("Gun: fire once to init")
+local lgun=mkStat("Gun: Searching...")
 local sep=Instance.new("Frame") sep.Size=UDim2.new(1,-10,0,1) sep.Position=UDim2.new(0,5,0,yP+3) sep.BackgroundColor3=Color3.fromRGB(55,55,55) sep.BorderSizePixel=0 sep.Parent=pan yP=yP+10
 
 local function T(lbl,key)
@@ -106,7 +116,7 @@ task.spawn(function()
             if hitRE then
                 for _,id in ipairs(eids) do shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id) end
                 lgun.Text="Gun: ACTIVE ("..#eids.." targets)" lgun.TextColor3=Color3.fromRGB(80,230,80)
-            else lgun.Text="Gun: fire once to init" lgun.TextColor3=Color3.fromRGB(230,180,80) end
+            else lgun.Text="Gun: Searching..." lgun.TextColor3=Color3.fromRGB(230,180,80) end
         end
         task.wait()
     end
