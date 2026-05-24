@@ -120,25 +120,32 @@ task.spawn(function()
     end
 end)
 
--- 7 parallel workers each doing sync try→confirm independently
--- Lua is single-threaded so eidx reads/writes are safe between InvokeServer yields
-local eidx=1
-for _=1,7 do
-    task.spawn(function()
-        while true do
-            if S.gun and hitRE and #eids>0 then
-                local i=eidx eidx=eidx%#eids+1
-                local id=eids[i]
-                if id then
-                    if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",id)end) end
-                    shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id)
+-- dedicated workers per enemy — all enemies attacked fully in parallel
+local WPER=3 -- workers per enemy; raise if still too slow
+local activeEids={}
+task.spawn(function()
+    while true do
+        local nxt={}
+        for _,id in ipairs(eids) do nxt[id]=true end
+        for id in pairs(nxt) do
+            if not activeEids[id] then
+                for _=1,WPER do
+                    local eid=id
+                    task.spawn(function()
+                        while activeEids[eid] do
+                            if S.gun and hitRE then
+                                if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",eid)end) end
+                                shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,eid)
+                            else task.wait(0.05) end
+                        end
+                    end)
                 end
-            else
-                task.wait(0.05)
             end
         end
-    end)
-end
+        activeEids=nxt
+        task.wait(0.5)
+    end
+end)
 
 task.spawn(function()
     while true do
