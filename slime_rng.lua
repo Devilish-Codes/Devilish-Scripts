@@ -1,6 +1,7 @@
 local RS=game:GetService("ReplicatedStorage")
 local UIS=game:GetService("UserInputService")
 local PL=game:GetService("Players").LocalPlayer
+
 local rollRF=nil
 task.spawn(function()
     for _=1,20 do
@@ -11,7 +12,8 @@ task.spawn(function()
         end task.wait(0.5)
     end
 end)
-local hitRE,gunRF,shotCount=nil,nil,0
+
+local hitRE,shotCount=nil,0
 local S={gun=false,roll=false,afk=false,collect=false}
 local rfs={}
 
@@ -23,12 +25,7 @@ task.spawn(function()
             local n=v.Parent and tonumber(v.Parent.Name:match("^Gameplay(%d+)$"))
             if n and n>bestN then hitRE=v bestN=n end
         end
-        if v:IsA("RemoteFunction") and v.Parent and v.Parent.Name=="SlimeGunService" then
-            gunRF=v
-        end
     end
-    if hitRE then print("[Slime Auto] Gun remote: Gameplay"..bestN) end
-    if gunRF then print("[Slime Auto] SlimeGunService RF found") end
 end)
 
 local eids={}
@@ -39,50 +36,29 @@ task.spawn(function()
             if v.Name:match("^Gameplay%d+$") then
                 local ef=v:FindFirstChild("Enemies")
                 if ef then
-                    local kids=ef:GetChildren()
-                    local first=kids[1]
-                    print("[Slime Auto] "..v.Name..".Enemies: "..#kids.." children, first="..(first and first.Name or "none").." class="..(first and first.ClassName or "?"))
-                    for _,e in ipairs(kids) do
+                    for _,e in ipairs(ef:GetChildren()) do
                         local id=tonumber(e.Name) if id then t[#t+1]=id end
                     end
                 end
             end
         end
-        if #t~=#eids then print("[Slime Auto] eids updated: "..#t) end
         eids=t task.wait(2)
     end
 end)
 
-local goopGet=nil -- function()->number once resolved
+local goopGet=nil
 task.spawn(function()
     task.wait(5)
-    -- dump all numeric value objects and attributes on player so we can find goop
-    print("[Slime Auto] === Player value objects ===")
-    for _,v in ipairs(PL:GetDescendants()) do
-        if v:IsA("NumberValue") or v:IsA("IntValue") or v:IsA("IntConstrainedValue") then
-            print("[Slime Auto]  val  "..v.Name.."="..tostring(v.Value))
-        end
-    end
-    print("[Slime Auto] === Player attributes ===")
-    for k,v in pairs(PL:GetAttributes()) do
-        if type(v)=="number" then print("[Slime Auto]  attr "..k.."="..tostring(v)) end
-    end
-    -- pick first value object whose name contains "goop" (case insensitive)
     for _,v in ipairs(PL:GetDescendants()) do
         if (v:IsA("NumberValue") or v:IsA("IntValue") or v:IsA("IntConstrainedValue")) and v.Name:lower():find("goop") then
-            goopGet=function() return v.Value end
-            print("[Slime Auto] Goop source (value obj): "..v:GetFullName().."="..tostring(v.Value))
-            return
+            goopGet=function() return v.Value end return
         end
     end
     for k,v in pairs(PL:GetAttributes()) do
         if type(v)=="number" and k:lower():find("goop") then
-            goopGet=function() return PL:GetAttribute(k) end
-            print("[Slime Auto] Goop source (attribute): "..k.."="..tostring(v))
-            return
+            goopGet=function() return PL:GetAttribute(k) end return
         end
     end
-    print("[Slime Auto] No goop value found in player data — paste console output so we can identify it")
 end)
 
 local g=Instance.new("ScreenGui") g.Name="SlimeGui" g.ResetOnSpawn=false
@@ -110,7 +86,7 @@ end
 local lpm=mkStat("Goop/min:  --")
 local lph=mkStat("Goop/hr:   --")
 local lpd=mkStat("Goop/day:  --")
-local lgun=mkStat("Gun: Searching...")
+local lgun=mkStat("Gun: --")
 local sep=Instance.new("Frame") sep.Size=UDim2.new(1,-10,0,1) sep.Position=UDim2.new(0,5,0,yP+3) sep.BackgroundColor3=Color3.fromRGB(55,55,55) sep.BorderSizePixel=0 sep.Parent=pan yP=yP+10
 
 local function T(lbl,key)
@@ -124,31 +100,29 @@ end)
 T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
 pan.Size=UDim2.new(0,220,0,yP+6)
 
-local eidx=1
+-- gun loop: 50 Hz, all enemies simultaneously, no tryFireSlimeGun
 task.spawn(function()
     while true do
         if hitRE then
-            -- keep SlimeGun equipped
             local char=PL.Character
             if char then
                 local gun=char:FindFirstChild("SlimeGun") or PL.Backpack:FindFirstChild("SlimeGun")
                 if gun and gun.Parent~=char then gun.Parent=char end
             end
             if S.gun and #eids>0 then
-                if eidx>#eids then eidx=1 end
-                local id=eids[eidx] eidx=eidx+1
-                if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",id)end) end
-                shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id)
-                lgun.Text="FIRE "..#eids.."t RF:"..(gunRF and "Y" or "N") lgun.TextColor3=Color3.fromRGB(80,230,80)
+                for _,id in ipairs(eids) do
+                    shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id)
+                end
+                lgun.Text="FIRE "..#eids.."t" lgun.TextColor3=Color3.fromRGB(80,230,80)
             elseif S.gun then
-                lgun.Text="FIRE 0t — no enemies" lgun.TextColor3=Color3.fromRGB(230,180,80)
+                lgun.Text="FIRE 0t" lgun.TextColor3=Color3.fromRGB(230,180,80)
             else
-                lgun.Text="RDY "..#eids.."t RF:"..(gunRF and "Y" or "N") lgun.TextColor3=Color3.fromRGB(160,220,160)
+                lgun.Text="RDY "..#eids.."t" lgun.TextColor3=Color3.fromRGB(160,220,160)
             end
         else
             lgun.Text="NO_RE E:"..#eids lgun.TextColor3=Color3.fromRGB(230,80,80)
         end
-        task.wait()
+        task.wait(0.02)
     end
 end)
 
@@ -177,7 +151,6 @@ task.spawn(function()
             local char=PL.Character
             local hrp=char and char:FindFirstChild("HumanoidRootPart")
             if hrp then
-                -- method 1: fire any pickup/collect ProximityPrompts in workspace
                 for _,v in ipairs(workspace:GetDescendants()) do
                     if v:IsA("ProximityPrompt") and v.Enabled then
                         local a=v.ActionText:lower()
@@ -186,7 +159,6 @@ task.spawn(function()
                         end
                     end
                 end
-                -- method 2: firetouchinterest on known drop folder children
                 for _,fname in ipairs(DROP_FOLDERS) do
                     local f=workspace:FindFirstChild(fname)
                     if f then
@@ -220,4 +192,3 @@ task.spawn(function()
         end
     end
 end)
-print("[Slime Auto] Ready.")
