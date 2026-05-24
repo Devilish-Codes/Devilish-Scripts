@@ -53,34 +53,36 @@ task.spawn(function()
     end
 end)
 
-local goopLbl=nil
+local goopGet=nil -- function()->number once resolved
 task.spawn(function()
-    task.wait(3)
-    local pg=PL:WaitForChild("PlayerGui")
-    local lbls={}
-    for _=1,15 do
-        local cam=workspace.CurrentCamera
-        if cam then
-            for _,v in ipairs(pg:GetDescendants()) do
-                if v.Name=="CounterRow" and v:IsA("Frame") and v.AbsolutePosition.X<cam.ViewportSize.X*0.45 then
-                    local amt=v:FindFirstChild("Amount")
-                    if amt then
-                        local l=amt:FindFirstChildOfClass("TextLabel")
-                        if l then local dup=false for _,x in ipairs(lbls)do if x==l then dup=true break end end if not dup then lbls[#lbls+1]=l end end
-                    end
-                end
-            end
+    task.wait(5)
+    -- dump all numeric value objects and attributes on player so we can find goop
+    print("[Slime Auto] === Player value objects ===")
+    for _,v in ipairs(PL:GetDescendants()) do
+        if v:IsA("NumberValue") or v:IsA("IntValue") or v:IsA("IntConstrainedValue") then
+            print("[Slime Auto]  val  "..v.Name.."="..tostring(v.Value))
         end
-        if #lbls>0 then break end task.wait(2)
     end
-    -- wait for goop to accumulate so it diverges from kill count, then pick max-value label
-    task.wait(15)
-    local best,bestV=nil,-1
-    for _,l in ipairs(lbls) do
-        if l.Parent then local n=tonumber((l.Text:gsub("[^%d]+","")))or 0 if n>bestV then best,bestV=l,n end end
+    print("[Slime Auto] === Player attributes ===")
+    for k,v in pairs(PL:GetAttributes()) do
+        if type(v)=="number" then print("[Slime Auto]  attr "..k.."="..tostring(v)) end
     end
-    goopLbl=best or lbls[1]
-    if goopLbl then print("[Slime Auto] Goop label locked ("..#lbls.." candidates, val="..bestV..")") end
+    -- pick first value object whose name contains "goop" (case insensitive)
+    for _,v in ipairs(PL:GetDescendants()) do
+        if (v:IsA("NumberValue") or v:IsA("IntValue") or v:IsA("IntConstrainedValue")) and v.Name:lower():find("goop") then
+            goopGet=function() return v.Value end
+            print("[Slime Auto] Goop source (value obj): "..v:GetFullName().."="..tostring(v.Value))
+            return
+        end
+    end
+    for k,v in pairs(PL:GetAttributes()) do
+        if type(v)=="number" and k:lower():find("goop") then
+            goopGet=function() return PL:GetAttribute(k) end
+            print("[Slime Auto] Goop source (attribute): "..k.."="..tostring(v))
+            return
+        end
+    end
+    print("[Slime Auto] No goop value found in player data — paste console output so we can identify it")
 end)
 
 local g=Instance.new("ScreenGui") g.Name="SlimeGui" g.ResetOnSpawn=false
@@ -204,13 +206,12 @@ task.spawn(function()
     local function fmt(n)
         if n>=1e9 then return string.format("%.1fB",n/1e9) elseif n>=1e6 then return string.format("%.1fM",n/1e6) elseif n>=1e3 then return string.format("%.1fK",n/1e3) else return tostring(math.floor(n))end
     end
-    local function pg(t)return tonumber((t:gsub("[^%d]+","")))or 0 end
-    local tries=0 while not goopLbl and tries<30 do task.wait(1) tries=tries+1 end
-    if not goopLbl then return end
-    local base=pg(goopLbl.Text) local t0=tick()
-    while goopLbl and goopLbl.Parent do
+    local tries=0 while not goopGet and tries<40 do task.wait(1) tries=tries+1 end
+    if not goopGet then lpm.Text="Goop/min: no source" return end
+    local base=goopGet() local t0=tick()
+    while true do
         task.wait(1)
-        local cur=pg(goopLbl.Text) local el=tick()-t0
+        local cur=goopGet() local el=tick()-t0
         if el>=10 then
             local ps=(cur-base)/el
             lpm.Text="Goop/min:  "..fmt(ps*60)
