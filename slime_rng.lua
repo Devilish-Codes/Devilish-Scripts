@@ -87,12 +87,15 @@ task.spawn(function()
 end)
 
 
-local g=Instance.new("ScreenGui") g.Name="SlimeGui" g.ResetOnSpawn=false
+local g=Instance.new("ScreenGui") g.Name="SlimeGui" g.ResetOnSpawn=false g.DisplayOrder=1
 pcall(function()g.Parent=gethui()end)
 if not g.Parent then g.Parent=game:GetService("CoreGui")end
 
--- black screen overlay (inserted before pan so pan renders on top)
-local blackScreen=Instance.new("Frame") blackScreen.Size=UDim2.new(1,0,1,0) blackScreen.BackgroundColor3=Color3.fromRGB(0,0,0) blackScreen.BorderSizePixel=0 blackScreen.Visible=S.black blackScreen.Parent=g
+-- black screen overlay in its own ScreenGui with IgnoreGuiInset for full coverage
+local blackGui=Instance.new("ScreenGui") blackGui.Name="SlimeBlack" blackGui.ResetOnSpawn=false blackGui.IgnoreGuiInset=true blackGui.DisplayOrder=0
+pcall(function()blackGui.Parent=gethui()end)
+if not blackGui.Parent then blackGui.Parent=game:GetService("CoreGui")end
+local blackScreen=Instance.new("Frame") blackScreen.Size=UDim2.new(1,0,1,0) blackScreen.BackgroundColor3=Color3.fromRGB(0,0,0) blackScreen.BorderSizePixel=0 blackScreen.Visible=S.black blackScreen.Parent=blackGui
 
 local pan=Instance.new("Frame") pan.Size=UDim2.new(0,220,0,10) pan.Position=UDim2.new(0,12,0,12) pan.BackgroundColor3=Color3.fromRGB(20,20,20) pan.BorderSizePixel=0 pan.Parent=g Instance.new("UICorner",pan).CornerRadius=UDim.new(0,8)
 local bubble=Instance.new("TextButton") bubble.Size=UDim2.new(0,44,0,44) bubble.Position=UDim2.new(1,-56,0,12) bubble.BackgroundColor3=Color3.fromRGB(35,35,35) bubble.TextColor3=Color3.fromRGB(220,220,220) bubble.Text="S" bubble.TextSize=16 bubble.Font=Enum.Font.GothamBold bubble.BorderSizePixel=0 bubble.Visible=false bubble.Parent=g Instance.new("UICorner",bubble).CornerRadius=UDim.new(1,0)
@@ -195,13 +198,13 @@ end)
 -- fps boost
 local EFFECT_TYPES={ParticleEmitter=true,Trail=true,Beam=true,Smoke=true,Fire=true,Sparkles=true,Decal=true,Texture=true,PointLight=true,SpotLight=true,SurfaceLight=true,BillboardGui=true,SurfaceGui=true,SelectionBox=true,SelectionSphere=true}
 local fpsActive=false
-local function stripEffects(root)
-    for _,v in ipairs(root:GetDescendants()) do
-        if EFFECT_TYPES[v.ClassName] then pcall(v.Destroy,v) end
-    end
-end
 fpsBtn.MouseButton1Click:Connect(function()
     fpsActive=true
+    local Lighting=game:GetService("Lighting")
+    pcall(function()Lighting.GlobalShadows=false Lighting.FogEnd=1e6 end)
+    for _,v in ipairs(Lighting:GetChildren()) do
+        if v:IsA("PostEffect") or v:IsA("Sky") then pcall(v.Destroy,v) end
+    end
     local char=PL.Character
     local hrp=char and char:FindFirstChild("HumanoidRootPart")
     local origin=hrp and hrp.Position or Vector3.new(0,0,0)
@@ -209,8 +212,12 @@ fpsBtn.MouseButton1Click:Connect(function()
     for _,v in ipairs(workspace:GetDescendants()) do
         if EFFECT_TYPES[v.ClassName] then
             pcall(v.Destroy,v) removed=removed+1
-        elseif v:IsA("BasePart") and not v.CanCollide and (v.Position-origin).Magnitude>500 then
-            pcall(v.Destroy,v) removed=removed+1
+        elseif v:IsA("BasePart") and v.Anchored then
+            if not v.CanCollide then
+                pcall(v.Destroy,v) removed=removed+1
+            elseif (v.Position-origin).Magnitude>300 then
+                pcall(function()v.Transparency=1 v.CastShadow=false end) removed=removed+1
+            end
         end
     end
     fpsBtn.Text="Cleared "..removed
@@ -337,13 +344,63 @@ task.spawn(function()
     end
 end)
 
--- anti-AFK: right-click via VirtualUser on Idled event (resets idle timer before kick)
+-- anti-AFK: event-driven (Roblox idle kick) + fallback timer + game-specific jump
 local VU=game:GetService("VirtualUser")
-PL.Idled:Connect(function()
-    VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-    task.wait(1)
-    VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+local function vuClick()
+    pcall(function()
+        VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+        task.wait(1)
+        VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+    end)
+end
+PL.Idled:Connect(vuClick)
+-- fallback every 10 min for executors where Idled may not fire
+task.spawn(function()while true do task.wait(600) vuClick() end end)
+-- game-specific: jump every 4 min to fool position/activity-based AFK detection
+task.spawn(function()
+    while true do task.wait(240)
+        local char=PL.Character
+        local hum=char and char:FindFirstChildOfClass("Humanoid")
+        if hum then pcall(function()hum.Jump=true end) end
+    end
 end)
+
+-- fruit inventory cap: skip collecting a fruit if already at/above this count
+local FRUIT_CAP=200
+local CAPPED_FRUITS={lightningFruit=true,iceFruit=true,fireFruit=true,universeFruit=true,magicianFruit=true,swordFruit=true}
+local _IU=nil
+local _fruitIdMap=nil
+local function getIU()
+    if _IU then return _IU end
+    local ok,m=pcall(require,RS.Source.Features.Inventory.InventoryItemUtils)
+    if ok then _IU=m end
+    return _IU
+end
+local function getFruitIdMap()
+    if _fruitIdMap then return _fruitIdMap end
+    local ok,Fr=pcall(require,RS.Source.Game.Items.Fruits)
+    if not ok then _fruitIdMap={} return _fruitIdMap end
+    local map={}
+    for _,f in ipairs(Fr.getSortedFruits()) do
+        if f.id then
+            map[f.id:lower()]=f.id
+            if f.name then map[f.name:lower()]=f.id end
+            if f.treeId then map[f.treeId:lower()]=f.id end
+        end
+    end
+    _fruitIdMap=map return map
+end
+local function getFruitCount(itemName)
+    if not itemName or itemName=="" then return 0 end
+    local id=getFruitIdMap()[itemName:lower()] or itemName
+    if not CAPPED_FRUITS[id] then return 0 end
+    local iu=getIU() if not iu then return 0 end
+    local ok,n=pcall(iu.getAmountOwned,id)
+    return (ok and type(n)=="number") and n or 0
+end
+local function fruitModel(inst)
+    local m=inst while m and not m:IsA("Model") do m=m.Parent end return m
+end
 
 -- auto collect: live ProximityPrompt cache via events (no GetDescendants polling)
 local ppCache={}
@@ -368,14 +425,21 @@ task.spawn(function()
             local hrp=char and char:FindFirstChild("HumanoidRootPart")
             if hrp then
                 for pp in pairs(ppCache) do
-                    if pp and pp.Enabled then pcall(fireproximityprompt,pp) end
+                    if pp and pp.Enabled then
+                        local m=fruitModel(pp)
+                        if not m or getFruitCount(m.Name)<FRUIT_CAP then
+                            pcall(fireproximityprompt,pp)
+                        end
+                    end
                 end
                 for _,fname in ipairs(DROP_FOLDERS) do
                     local f=workspace:FindFirstChild(fname)
                     if f then
                         for _,item in ipairs(f:GetChildren()) do
-                            local part=item:IsA("BasePart") and item or item:FindFirstChildOfClass("BasePart")
-                            if part then pcall(firetouchinterest,part,hrp,0) end
+                            if getFruitCount(item.Name)<FRUIT_CAP then
+                                local part=item:IsA("BasePart") and item or item:FindFirstChildOfClass("BasePart")
+                                if part then pcall(firetouchinterest,part,hrp,0) end
+                            end
                         end
                     end
                 end
