@@ -354,11 +354,11 @@ local function vuClick()
     end)
 end
 PL.Idled:Connect(vuClick)
--- fallback every 10 min for executors where Idled may not fire
-task.spawn(function()while true do task.wait(600) vuClick() end end)
--- game-specific: jump every 4 min to fool position/activity-based AFK detection
+-- fallback every 14 min (fires before the 15-min game kick)
+task.spawn(function()while true do task.wait(840) vuClick() end end)
+-- game-specific: jump every 14 min alongside the VU click
 task.spawn(function()
-    while true do task.wait(240)
+    while true do task.wait(840)
         local char=PL.Character
         local hum=char and char:FindFirstChildOfClass("Humanoid")
         if hum then pcall(function()hum.Jump=true end) end
