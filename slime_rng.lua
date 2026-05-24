@@ -14,11 +14,11 @@ task.spawn(function()
 end)
 
 local hitRE,gunRF,shotCount=nil,nil,0
-local S={gun=false,roll=false,collect=false,tele=false}
+local S={gun=false,roll=false,collect=false,tele=false,black=false}
 local rfs={}
 
 local SAVE_FILE="slime_rng_state.txt"
-local SKEYS={"gun","roll","collect","tele"}
+local SKEYS={"gun","roll","collect","tele","black"}
 local function saveState()
     local parts={}
     for _,k in ipairs(SKEYS) do parts[#parts+1]=k.."="..(S[k] and "1" or "0") end
@@ -89,9 +89,12 @@ local g=Instance.new("ScreenGui") g.Name="SlimeGui" g.ResetOnSpawn=false
 pcall(function()g.Parent=gethui()end)
 if not g.Parent then g.Parent=game:GetService("CoreGui")end
 
+-- black screen overlay (inserted before pan so pan renders on top)
+local blackScreen=Instance.new("Frame") blackScreen.Size=UDim2.new(1,0,1,0) blackScreen.BackgroundColor3=Color3.fromRGB(0,0,0) blackScreen.BorderSizePixel=0 blackScreen.Visible=S.black blackScreen.Parent=g
+
 local pan=Instance.new("Frame") pan.Size=UDim2.new(0,220,0,10) pan.Position=UDim2.new(0,12,0,12) pan.BackgroundColor3=Color3.fromRGB(20,20,20) pan.BorderSizePixel=0 pan.Parent=g Instance.new("UICorner",pan).CornerRadius=UDim.new(0,8)
 local bubble=Instance.new("TextButton") bubble.Size=UDim2.new(0,44,0,44) bubble.Position=UDim2.new(1,-56,0,12) bubble.BackgroundColor3=Color3.fromRGB(35,35,35) bubble.TextColor3=Color3.fromRGB(220,220,220) bubble.Text="S" bubble.TextSize=16 bubble.Font=Enum.Font.GothamBold bubble.BorderSizePixel=0 bubble.Visible=false bubble.Parent=g Instance.new("UICorner",bubble).CornerRadius=UDim.new(1,0)
-local ttl=Instance.new("TextLabel") ttl.Size=UDim2.new(1,-68,0,30) ttl.BackgroundColor3=Color3.fromRGB(35,35,35) ttl.TextColor3=Color3.fromRGB(220,220,220) ttl.Text="[ SLIME RNG ]" ttl.TextSize=13 ttl.Font=Enum.Font.GothamBold ttl.BorderSizePixel=0 ttl.Parent=pan Instance.new("UICorner",ttl).CornerRadius=UDim.new(0,8)
+local ttl=Instance.new("TextLabel") ttl.Size=UDim2.new(1,-68,0,30) ttl.BackgroundColor3=Color3.fromRGB(35,35,35) ttl.TextColor3=Color3.fromRGB(220,220,220) ttl.Text="Lxcifer Scripts" ttl.TextSize=13 ttl.Font=Enum.Font.GothamBold ttl.BorderSizePixel=0 ttl.Parent=pan Instance.new("UICorner",ttl).CornerRadius=UDim.new(0,8)
 local minBtn=Instance.new("TextButton") minBtn.Size=UDim2.new(0,30,0,30) minBtn.Position=UDim2.new(1,-64,0,0) minBtn.BackgroundColor3=Color3.fromRGB(60,60,60) minBtn.TextColor3=Color3.fromRGB(220,220,220) minBtn.Text="_" minBtn.TextSize=16 minBtn.Font=Enum.Font.GothamBold minBtn.BorderSizePixel=0 minBtn.ZIndex=2 minBtn.Parent=pan Instance.new("UICorner",minBtn).CornerRadius=UDim.new(0,6)
 local stopBtn=Instance.new("TextButton") stopBtn.Size=UDim2.new(0,30,0,30) stopBtn.Position=UDim2.new(1,-32,0,0) stopBtn.BackgroundColor3=Color3.fromRGB(140,30,30) stopBtn.TextColor3=Color3.fromRGB(255,255,255) stopBtn.Text="X" stopBtn.TextSize=14 stopBtn.Font=Enum.Font.GothamBold stopBtn.BorderSizePixel=0 stopBtn.ZIndex=2 stopBtn.Parent=pan Instance.new("UICorner",stopBtn).CornerRadius=UDim.new(0,6)
 
@@ -110,16 +113,18 @@ local tabStats=Instance.new("TextButton") tabStats.Size=UDim2.new(0.5,-7,0,24) t
 local ctrlFrame=Instance.new("Frame") ctrlFrame.Size=UDim2.new(1,0,0,10) ctrlFrame.Position=UDim2.new(0,0,0,62) ctrlFrame.BackgroundTransparency=1 ctrlFrame.BorderSizePixel=0 ctrlFrame.Parent=pan
 local yC=4
 local sep=Instance.new("Frame") sep.Size=UDim2.new(1,-10,0,1) sep.Position=UDim2.new(0,5,0,yC) sep.BackgroundColor3=Color3.fromRGB(55,55,55) sep.BorderSizePixel=0 sep.Parent=ctrlFrame yC=yC+8
-local function T(lbl,key)
+local function T(lbl,key,cb)
     local b=Instance.new("TextButton") b.Size=UDim2.new(1,-10,0,26) b.Position=UDim2.new(0,5,0,yC) b.BorderSizePixel=0 b.TextSize=12 b.Font=Enum.Font.Gotham b.Parent=ctrlFrame Instance.new("UICorner",b).CornerRadius=UDim.new(0,4)
     local function rf()if S[key]then b.Text=lbl.." ON" b.BackgroundColor3=Color3.fromRGB(25,70,25) b.TextColor3=Color3.fromRGB(80,230,80)else b.Text=lbl.." OFF" b.BackgroundColor3=Color3.fromRGB(70,25,25) b.TextColor3=Color3.fromRGB(230,80,80)end end
-    b.MouseButton1Click:Connect(function()S[key]=not S[key] rf() saveState()end) rf() yC=yC+30 table.insert(rfs,rf)
+    b.MouseButton1Click:Connect(function()S[key]=not S[key] rf() saveState() if cb then cb(S[key]) end end) rf() if cb then cb(S[key]) end yC=yC+30 table.insert(rfs,rf)
 end
 stopBtn.MouseButton1Click:Connect(function()
     for k in pairs(S)do S[k]=false end for _,rf in ipairs(rfs)do rf()end task.wait(0.1) g:Destroy()
 end)
 T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Auto Return","tele")
+T("Black Screen","black",function(on)blackScreen.Visible=on end)
 local savePosBtn=Instance.new("TextButton") savePosBtn.Size=UDim2.new(1,-10,0,24) savePosBtn.Position=UDim2.new(0,5,0,yC) savePosBtn.BackgroundColor3=Color3.fromRGB(35,55,80) savePosBtn.TextColor3=Color3.fromRGB(120,180,255) savePosBtn.Text="Save Position" savePosBtn.TextSize=12 savePosBtn.Font=Enum.Font.Gotham savePosBtn.BorderSizePixel=0 savePosBtn.Parent=ctrlFrame Instance.new("UICorner",savePosBtn).CornerRadius=UDim.new(0,4) yC=yC+28
+local fpsBtn=Instance.new("TextButton") fpsBtn.Size=UDim2.new(1,-10,0,24) fpsBtn.Position=UDim2.new(0,5,0,yC) fpsBtn.BackgroundColor3=Color3.fromRGB(50,35,15) fpsBtn.TextColor3=Color3.fromRGB(255,180,60) fpsBtn.Text="FPS Boost" fpsBtn.TextSize=12 fpsBtn.Font=Enum.Font.Gotham fpsBtn.BorderSizePixel=0 fpsBtn.Parent=ctrlFrame Instance.new("UICorner",fpsBtn).CornerRadius=UDim.new(0,4) yC=yC+28
 ctrlFrame.Size=UDim2.new(1,0,0,yC+4)
 
 -- stats frame (tab 2)
@@ -168,6 +173,35 @@ task.spawn(function()
         end
         task.wait(0.1)
     end
+end)
+
+-- fps boost
+local EFFECT_TYPES={ParticleEmitter=true,Trail=true,Beam=true,Smoke=true,Fire=true,Sparkles=true,Decal=true,Texture=true,PointLight=true,SpotLight=true,SurfaceLight=true,BillboardGui=true,SurfaceGui=true,SelectionBox=true,SelectionSphere=true}
+local fpsActive=false
+local function stripEffects(root)
+    for _,v in ipairs(root:GetDescendants()) do
+        if EFFECT_TYPES[v.ClassName] then pcall(v.Destroy,v) end
+    end
+end
+fpsBtn.MouseButton1Click:Connect(function()
+    fpsActive=true
+    local char=PL.Character
+    local hrp=char and char:FindFirstChild("HumanoidRootPart")
+    local origin=hrp and hrp.Position or Vector3.new(0,0,0)
+    local removed=0
+    for _,v in ipairs(workspace:GetDescendants()) do
+        if EFFECT_TYPES[v.ClassName] then
+            pcall(v.Destroy,v) removed=removed+1
+        elseif v:IsA("BasePart") and not v.CanCollide and (v.Position-origin).Magnitude>500 then
+            pcall(v.Destroy,v) removed=removed+1
+        end
+    end
+    fpsBtn.Text="Cleared "..removed
+    task.delay(2,function()if fpsBtn and fpsBtn.Parent then fpsBtn.Text="FPS Boost" end end)
+end)
+-- suppress new effects added to the scene after boost is applied
+workspace.DescendantAdded:Connect(function(v)
+    if fpsActive and EFFECT_TYPES[v.ClassName] then pcall(v.Destroy,v) end
 end)
 
 -- save position button
