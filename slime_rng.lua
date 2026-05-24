@@ -131,21 +131,27 @@ local hookedREs={}
 local function hookRE(re)
     if hookedREs[re] then return end
     hookedREs[re]=true
-    re.OnClientEvent:Connect(function(a1,a2,a3)
-        -- show raw args in GUI for debugging
-        local function s(v) return typeof(v)..":"..tostring(v) end
-        lGoopKills.Text=s(a1)
-        lGoopX2.Text=(a2~=nil and s(a2) or "nil")
-        lGoopMin.Text=(a3~=nil and s(a3) or "nil")
-        -- accumulate
+    re.OnClientEvent:Connect(function(a1,a2,a3,a4)
+        local function s(v) if v==nil then return "nil" end return typeof(v)..":"..tostring(v) end
+        local isGoop=a1=="goopRewarded" or a2=="goop" or (type(a1)=="string" and a1:lower():find("goop"))
+        local isCoin=a1=="coinRewarded" or (type(a1)=="string" and a1:lower():find("coin"))
+        if isGoop or isCoin then
+            lGoopKills.Text="a1="..s(a1)
+            lGoopX2.Text="a2="..s(a2).." a3="..s(a3)
+            lGoopMin.Text="a4="..s(a4)
+        end
         if a1=="goopRewarded" then
             if type(a2)=="number" then goopTotal=goopTotal+a2
-            elseif type(a3)=="number" then goopTotal=goopTotal+a3 end
+            elseif type(a3)=="number" then goopTotal=goopTotal+a3
+            elseif type(a4)=="number" then goopTotal=goopTotal+a4 end
         elseif a1=="coinRewarded" then
             if type(a2)=="number" then coinTotal=coinTotal+a2
-            elseif type(a3)=="number" then coinTotal=coinTotal+a3 end
+            elseif type(a3)=="number" then coinTotal=coinTotal+a3
+            elseif type(a4)=="number" then coinTotal=coinTotal+a4 end
         elseif type(a1)=="number" and a2=="goop" then
             goopTotal=goopTotal+a1
+        elseif type(a2)=="number" and a3=="goop" then
+            goopTotal=goopTotal+a2
         end
     end)
 end
