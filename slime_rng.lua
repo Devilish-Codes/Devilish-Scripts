@@ -36,7 +36,7 @@ loadState()
 
 task.spawn(function()
     task.wait(1)
-    while true do
+    local function scan()
         local bestN=-1
         for _,v in ipairs(RS:GetDescendants()) do
             if v:IsA("RemoteEvent") then
@@ -47,8 +47,10 @@ task.spawn(function()
                 gunRF=v
             end
         end
-        task.wait(3)
     end
+    -- scan until both found, then every 30s to handle server changes
+    while not (hitRE and gunRF) do scan() task.wait(3) end
+    while true do task.wait(30) scan() end
 end)
 
 local eids={}
@@ -179,7 +181,21 @@ task.spawn(function()
     end
 end)
 
--- auto collect
+-- auto collect: live ProximityPrompt cache via events (no GetDescendants polling)
+local ppCache={}
+local function ppAdd(v)
+    if v:IsA("ProximityPrompt") then
+        local a=v.ActionText:lower()
+        if a=="" or a:find("pick") or a:find("collect") or a:find("take") or a:find("grab") then
+            ppCache[v]=true
+        end
+    end
+end
+local function ppRemove(v) ppCache[v]=nil end
+workspace.DescendantAdded:Connect(ppAdd)
+workspace.DescendantRemoving:Connect(ppRemove)
+for _,v in ipairs(workspace:GetDescendants()) do ppAdd(v) end
+
 task.spawn(function()
     local DROP_FOLDERS={"Drops","Fruits","Items","Pickups","Collectibles","GoopDrops","WorldItems"}
     while true do
@@ -187,13 +203,8 @@ task.spawn(function()
             local char=PL.Character
             local hrp=char and char:FindFirstChild("HumanoidRootPart")
             if hrp then
-                for _,v in ipairs(workspace:GetDescendants()) do
-                    if v:IsA("ProximityPrompt") and v.Enabled then
-                        local a=v.ActionText:lower()
-                        if a=="" or a:find("pick") or a:find("collect") or a:find("take") or a:find("grab") then
-                            pcall(fireproximityprompt,v)
-                        end
-                    end
+                for pp in pairs(ppCache) do
+                    if pp and pp.Enabled then pcall(fireproximityprompt,pp) end
                 end
                 for _,fname in ipairs(DROP_FOLDERS) do
                     local f=workspace:FindFirstChild(fname)
