@@ -248,6 +248,12 @@ task.spawn(function()
             local hrp=PL.Character and PL.Character:FindFirstChild("HumanoidRootPart")
             if hrp and enemyPos and #slimeIDs>0 then
                 local savedCF=hrp.CFrame
+                local cam=workspace.CurrentCamera
+                local savedCamCF=cam.CFrame
+                local savedCamType=cam.CameraType
+                -- freeze camera so player doesn't see teleport
+                cam.CameraType=Enum.CameraType.Scriptable
+                cam.CFrame=savedCamCF
                 -- teleport to enemy
                 hrp.CFrame=CFrame.new(enemyPos+Vector3.new(0,3,0))
                 task.wait(0.1)
@@ -259,8 +265,9 @@ task.spawn(function()
                     pcall(function()invRF:InvokeServer("requestEquip",id)end)
                 end
                 task.wait(0.1)
-                -- teleport player back
+                -- teleport player back and restore camera
                 hrp.CFrame=savedCF
+                cam.CameraType=savedCamType
             end
         end
         task.wait(0.1)
