@@ -6,17 +6,19 @@ local hitRE,shotCount=nil,0
 local S={gun=false,roll=false,afk=false}
 local rfs={}
 
-local mt=getrawmetatable(game) local oldNC=mt.__namecall
-setreadonly(mt,false)
-mt.__namecall=function(self,...)
-    local args={...}
-    if getnamecallmethod()=="FireServer" and not hitRE and args[1]=="confirmHit" then
-        hitRE=self shotCount=(args[2] or 0)+1
-        setreadonly(mt,false) mt.__namecall=oldNC setreadonly(mt,true)
+pcall(function()
+    local mt=getrawmetatable(game) local oldNC=mt.__namecall
+    setreadonly(mt,false)
+    mt.__namecall=function(self,...)
+        local args={...}
+        if getnamecallmethod()=="FireServer" and not hitRE and args[1]=="confirmHit" then
+            hitRE=self shotCount=(args[2] or 0)+1
+            setreadonly(mt,false) mt.__namecall=oldNC setreadonly(mt,true)
+        end
+        return oldNC(self,...)
     end
-    return oldNC(self,...)
-end
-setreadonly(mt,true)
+    setreadonly(mt,true)
+end)
 
 local eids={}
 task.spawn(function()
@@ -133,4 +135,4 @@ task.spawn(function()
         end
     end
 end)
-warn("[Slime Auto] Ready.")
+print("[Slime Auto] Ready.")
