@@ -114,15 +114,24 @@ end)
 T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Anti-AFK","afk")
 pan.Size=UDim2.new(0,220,0,yP+6)
 
+local eidx=1
 task.spawn(function()
     while true do
         if hitRE then
-            if S.gun then
-                for _,id in ipairs(eids) do
-                    if gunRF then task.spawn(function()pcall(function()gunRF:InvokeServer("tryFireSlimeGun",id)end)end) end
-                    shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id)
-                end
+            -- keep SlimeGun equipped
+            local char=PL.Character
+            if char then
+                local gun=char:FindFirstChild("SlimeGun") or PL.Backpack:FindFirstChild("SlimeGun")
+                if gun and gun.Parent~=char then gun.Parent=char end
+            end
+            if S.gun and #eids>0 then
+                if eidx>#eids then eidx=1 end
+                local id=eids[eidx] eidx=eidx+1
+                if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",id)end) end
+                shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,id)
                 lgun.Text="FIRE "..#eids.."t RF:"..(gunRF and "Y" or "N") lgun.TextColor3=Color3.fromRGB(80,230,80)
+            elseif S.gun then
+                lgun.Text="FIRE 0t — no enemies" lgun.TextColor3=Color3.fromRGB(230,180,80)
             else
                 lgun.Text="RDY "..#eids.."t RF:"..(gunRF and "Y" or "N") lgun.TextColor3=Color3.fromRGB(160,220,160)
             end
