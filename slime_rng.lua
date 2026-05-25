@@ -16,11 +16,20 @@ task.spawn(function()
 end)
 
 local hitRE,gunRF,shotCount=nil,nil,0
-local S={gun=false,roll=false,collect=false,tele=false,black=false,slimehp=false}
+local dataRE=nil -- DataService RemoteEvent (found async below)
+
+-- sync rolls state
+local ROLL_TYPES={"void","galaxy","golden","diamond"}
+local rollProgress={void={r=math.huge},galaxy={r=math.huge},golden={r=math.huge},diamond={r=math.huge}}
+local clientPaused={void=false,galaxy=false,golden=false,diamond=false}
+local syncReady=false  -- true once all four have dropped under 100
+local syncStatusLbl=nil -- assigned after UI is built
+
+local S={gun=false,roll=false,collect=false,tele=false,black=false,slimehp=false,syncrolls=false}
 local rfs={}
 
 local SAVE_FILE="slime_rng_state.txt"
-local SKEYS={"gun","roll","collect","tele","black","slimehp"}
+local SKEYS={"gun","roll","collect","tele","black","slimehp","syncrolls"}
 local function saveState()
     local parts={}
     for _,k in ipairs(SKEYS) do parts[#parts+1]=k.."="..(S[k] and "1" or "0") end
@@ -184,6 +193,24 @@ end)
 T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Auto Return","tele")
 T("Black Screen","black",function(on)blackScreen.Visible=on end)
 T("Slime HP","slimehp")
+T("Sync Rolls","syncrolls",function(on)
+    if not on then
+        syncReady=false
+        for _,rt in ipairs(ROLL_TYPES) do
+            if clientPaused[rt] then
+                if dataRE then pcall(function()
+                    -- VERIFY: update this call name if it doesn't work
+                    dataRE:FireServer("pauseSpecialRoll",rt,false)
+                end) end
+                clientPaused[rt]=false
+            end
+        end
+        if syncStatusLbl then syncStatusLbl.Text="Gld:-- Dia:-- Vd:-- Gx:--" syncStatusLbl.TextColor3=Color3.fromRGB(100,100,100) end
+    end
+end)
+-- roll count display: gray=off, yellow=waiting for all<100, blue=actively pausing
+local _ssl=Instance.new("TextLabel") _ssl.Size=UDim2.new(1,-10,0,16) _ssl.Position=UDim2.new(0,5,0,yC) _ssl.BackgroundTransparency=1 _ssl.TextColor3=Color3.fromRGB(100,100,100) _ssl.Text="Gld:-- Dia:-- Vd:-- Gx:--" _ssl.TextSize=10 _ssl.Font=Enum.Font.Code _ssl.TextXAlignment=Enum.TextXAlignment.Left _ssl.Parent=ctrlFrame
+syncStatusLbl=_ssl yC=yC+18
 local savePosBtn=Instance.new("TextButton") savePosBtn.Size=UDim2.new(1,-10,0,24) savePosBtn.Position=UDim2.new(0,5,0,yC) savePosBtn.BackgroundColor3=Color3.fromRGB(35,55,80) savePosBtn.TextColor3=Color3.fromRGB(120,180,255) savePosBtn.Text="Save Position" savePosBtn.TextSize=12 savePosBtn.Font=Enum.Font.Gotham savePosBtn.BorderSizePixel=0 savePosBtn.Parent=ctrlFrame Instance.new("UICorner",savePosBtn).CornerRadius=UDim.new(0,4) yC=yC+28
 local fpsBtn=Instance.new("TextButton") fpsBtn.Size=UDim2.new(1,-10,0,24) fpsBtn.Position=UDim2.new(0,5,0,yC) fpsBtn.BackgroundColor3=Color3.fromRGB(50,35,15) fpsBtn.TextColor3=Color3.fromRGB(255,180,60) fpsBtn.Text="FPS Boost" fpsBtn.TextSize=12 fpsBtn.Font=Enum.Font.Gotham fpsBtn.BorderSizePixel=0 fpsBtn.Parent=ctrlFrame Instance.new("UICorner",fpsBtn).CornerRadius=UDim.new(0,4) yC=yC+28
 ctrlFrame.Size=UDim2.new(1,0,0,yC+4)
@@ -396,6 +423,68 @@ task.spawn(function()
 end)
 local frameCount=0
 RunService.Heartbeat:Connect(function() frameCount=frameCount+1 end)
+
+-- sync rolls: pause each special roll at 1 remaining, fire all simultaneously
+local function syncPause(rt,sp)
+    if not dataRE then return end
+    -- VERIFY: capture this call on Synapse/Fluxus by clicking the in-game pause button
+    -- Common alternatives: "setSpecialRollPaused", "toggleSpecialRollPause", "updateSpecialRoll"
+    pcall(function() dataRE:FireServer("pauseSpecialRoll",rt,sp) end)
+end
+local function handleSyncRolls()
+    if not S.syncrolls then return end
+    -- Phase 1: wait until all four are under 100
+    if not syncReady then
+        for _,rt in ipairs(ROLL_TYPES) do
+            if rollProgress[rt].r>100 then return end
+        end
+        syncReady=true
+    end
+    -- Phase 2: pause each as it hits ≤1
+    for _,rt in ipairs(ROLL_TYPES) do
+        if rollProgress[rt].r<=1 and not clientPaused[rt] then
+            syncPause(rt,true) clientPaused[rt]=true
+        end
+    end
+    -- Phase 3: all four paused at ≤1 → fire simultaneously
+    local allReady=true
+    for _,rt in ipairs(ROLL_TYPES) do
+        if not clientPaused[rt] or rollProgress[rt].r>1 then allReady=false break end
+    end
+    if allReady then
+        for _,rt in ipairs(ROLL_TYPES) do syncPause(rt,false) clientPaused[rt]=false end
+        syncReady=false
+    end
+    -- update status label
+    if syncStatusLbl then
+        local r=rollProgress
+        local function f(v) return v>=math.huge and "--" or tostring(v) end
+        syncStatusLbl.Text=string.format("Gld:%-4s Dia:%-4s Vd:%-4s Gx:%-4s",f(r.golden.r),f(r.diamond.r),f(r.void.r),f(r.galaxy.r))
+        syncStatusLbl.TextColor3=syncReady and Color3.fromRGB(80,180,255) or Color3.fromRGB(200,160,40)
+    end
+end
+task.spawn(function()
+    for _=1,30 do
+        local ds=RS:FindFirstChild("DataService")
+        if ds then
+            local re=ds:FindFirstChildOfClass("RemoteEvent")
+            if re then
+                dataRE=re
+                re.OnClientEvent:Connect(function(_,evName,data)
+                    if evName=="specialRollProgression" and type(data)=="table" then
+                        for _,rt in ipairs(ROLL_TYPES) do
+                            local d=data[rt]
+                            if d then rollProgress[rt].r=d.rollsUntilNext or math.huge end
+                        end
+                        handleSyncRolls()
+                    end
+                end)
+                return
+            end
+        end
+        task.wait(0.5)
+    end
+end)
 
 task.spawn(function()
     local sfx={"K","M","B","T","Qa","Qi","Sx","Sp","Oc","No","Dc"}
