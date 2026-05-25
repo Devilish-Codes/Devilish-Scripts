@@ -344,32 +344,29 @@ task.spawn(function()
     end
 end)
 
--- anti-AFK: event-driven (Roblox idle kick) + fallback timer + game-specific jump
+-- anti-AFK: block the game's AutoRejoinService from firing autoRejoin to the server
 local VU=game:GetService("VirtualUser")
-local function vuClick()
+PL.Idled:Connect(function()
     pcall(function()
         VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
         task.wait(1)
         VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
     end)
-end
-PL.Idled:Connect(vuClick)
--- fallback VU click every 10 min
-task.spawn(function()while true do task.wait(600) vuClick() end end)
--- game-specific: walk forward/back for 1s alternating every 5 min
-task.spawn(function()
-    local dir=1
-    while true do task.wait(300)
-        local char=PL.Character
-        local hum=char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            pcall(function()hum:Move(Vector3.new(0,0,dir),false)end)
-            task.wait(1)
-            pcall(function()hum:Move(Vector3.new(0,0,0),false)end)
-            dir=-dir
+end)
+local _mt=getrawmetatable(game)
+local _old=_mt.__namecall
+setreadonly(_mt,false)
+_mt.__namecall=function(self,...)
+    local m=getnamecallmethod()
+    if m=="FireServer" then
+        local args={...}
+        if args[1]=="autoRejoin" and self.Parent and self.Parent.Name=="AutoRejoinService" then
+            return -- block the game's AFK rejoin
         end
     end
-end)
+    return _old(self,...)
+end
+setreadonly(_mt,true)
 
 -- fruit inventory cap: skip collecting a fruit if already at/above this count
 local FRUIT_CAP=200
