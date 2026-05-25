@@ -1,6 +1,8 @@
 local RS=game:GetService("ReplicatedStorage")
 local UIS=game:GetService("UserInputService")
-local PL=game:GetService("Players").LocalPlayer
+local Players=game:GetService("Players")
+local PL=Players.LocalPlayer
+while not PL do task.wait() PL=Players.LocalPlayer end
 local RunService=game:GetService("RunService")
 local TS=game:GetService("TeleportService")
 
