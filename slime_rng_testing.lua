@@ -184,9 +184,10 @@ statsFrame.Size=UDim2.new(1,0,0,yS+4)
 local serverFrame=Instance.new("Frame") serverFrame.Size=UDim2.new(1,0,0,58) serverFrame.Position=UDim2.new(0,0,0,62) serverFrame.BackgroundTransparency=1 serverFrame.BorderSizePixel=0 serverFrame.Visible=false serverFrame.Parent=pan
 local rejoinBtn=Instance.new("TextButton") rejoinBtn.Size=UDim2.new(1,-10,0,34) rejoinBtn.Position=UDim2.new(0,5,0,12) rejoinBtn.BackgroundColor3=Color3.fromRGB(35,40,70) rejoinBtn.TextColor3=Color3.fromRGB(160,180,255) rejoinBtn.Text="Rejoin Server" rejoinBtn.TextSize=13 rejoinBtn.Font=Enum.Font.GothamBold rejoinBtn.BorderSizePixel=0 rejoinBtn.Parent=serverFrame Instance.new("UICorner",rejoinBtn).CornerRadius=UDim.new(0,6)
 rejoinBtn.MouseButton1Click:Connect(function()
-    rejoinBtn.Text="Leaving..."
-    task.wait(0.5)
-    PL:Kick("Rejoining")
+    rejoinBtn.Text="Rejoining..."
+    local re=RS:FindFirstChild("AutoRejoinService") and RS.AutoRejoinService:FindFirstChildOfClass("RemoteEvent")
+    if re then pcall(function()_old(re,"autoRejoin")end)
+    else pcall(function()TS:TeleportToPlaceInstance(game.PlaceId,game.JobId,PL)end) end
 end)
 
 -- tab switching
