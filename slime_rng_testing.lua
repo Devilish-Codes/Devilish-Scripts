@@ -191,7 +191,10 @@ end
 rejoinBtn.MouseButton1Click:Connect(function()
     rejoinBtn.Text="Rejoining..."
     local re=findAutoRejoinRE()
-    if re then pcall(function()re:FireServer("autoRejoin")end)
+    if re then
+        _allowRejoin=true
+        pcall(function()re:FireServer("autoRejoin")end)
+        _allowRejoin=false
     else pcall(function()TS:TeleportToPlaceInstance(game.PlaceId,game.JobId,PL)end) end
 end)
 
@@ -380,6 +383,7 @@ PL.Idled:Connect(function()
         VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
     end)
 end)
+local _allowRejoin=false
 local _mt=getrawmetatable(game)
 local _old=_mt.__namecall
 setreadonly(_mt,false)
@@ -388,6 +392,7 @@ _mt.__namecall=function(self,...)
     if m=="FireServer" then
         local args={...}
         if args[1]=="autoRejoin" and self.Parent and self.Parent.Name=="AutoRejoinService" then
+            if _allowRejoin then return _old(self,...) end
             return -- block the game's AFK rejoin
         end
     end
