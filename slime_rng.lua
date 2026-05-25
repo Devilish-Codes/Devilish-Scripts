@@ -27,6 +27,7 @@ local syncStatusLbl=nil -- assigned after UI is built
 
 local S={gun=false,roll=false,collect=false,tele=false,black=false,slimehp=false,syncrolls=false}
 local rfs={}
+local _allowRejoin=false -- allows the manual rejoin button to bypass the anti-AFK block
 
 local SAVE_FILE="slime_rng_state.txt"
 local SKEYS={"gun","roll","collect","tele","black","slimehp","syncrolls"}
@@ -250,7 +251,7 @@ local rejoinBtn=Instance.new("TextButton") rejoinBtn.Size=UDim2.new(1,-10,0,34) 
 rejoinBtn.MouseButton1Click:Connect(function()
     rejoinBtn.Text="Rejoining..."
     local re=RS:FindFirstChild("AutoRejoinService") and RS.AutoRejoinService:FindFirstChildOfClass("RemoteEvent")
-    if re then pcall(function()_old(re,"autoRejoin")end)
+    if re then _allowRejoin=true pcall(function()re:autoRejoin()end) _allowRejoin=false
     else pcall(function()TS:TeleportToPlaceInstance(game.PlaceId,game.JobId,PL)end) end
 end)
 
@@ -550,15 +551,15 @@ PL.Idled:Connect(function()
 end)
 local _mt=getrawmetatable(game)
 local _old=_mt.__namecall
-setreadonly(_mt,false)
+if setreadonly then setreadonly(_mt,false) end
 _mt.__namecall=function(self,...)
-    local args={...}
-    if args[1]=="autoRejoin" and self.Parent and self.Parent.Name=="AutoRejoinService" then
+    local method=(getnamecallmethod and getnamecallmethod()) or ({...})[1]
+    if method=="autoRejoin" and self.Parent and self.Parent.Name=="AutoRejoinService" and not _allowRejoin then
         return -- block the game's AFK rejoin
     end
     return _old(self,...)
 end
-setreadonly(_mt,true)
+if setreadonly then setreadonly(_mt,true) end
 
 -- fruit inventory cap: skip collecting a fruit if already at/above this count
 local FRUIT_CAP=200
@@ -624,7 +625,7 @@ task.spawn(function()
                     if pp and pp.Enabled then
                         local m=fruitModel(pp)
                         if not m or getFruitCount(m.Name)<FRUIT_CAP then
-                            pcall(fireproximityprompt,pp)
+                            if fireproximityprompt then pcall(fireproximityprompt,pp) end
                         end
                     end
                 end
@@ -634,7 +635,7 @@ task.spawn(function()
                         for _,item in ipairs(f:GetChildren()) do
                             if getFruitCount(item.Name)<FRUIT_CAP then
                                 local part=item:IsA("BasePart") and item or item:FindFirstChildOfClass("BasePart")
-                                if part then pcall(firetouchinterest,part,hrp,0) end
+                                if part and firetouchinterest then pcall(firetouchinterest,part,hrp,0) end
                             end
                         end
                     end
