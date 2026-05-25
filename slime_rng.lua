@@ -49,6 +49,17 @@ local function loadPosFile()
 end
 loadPosFile()
 
+local UI_POS_FILE="slime_rng_uipos.txt"
+local function saveUiPos()
+    pcall(writefile,UI_POS_FILE,pan.Position.X.Offset..","..pan.Position.Y.Offset)
+end
+local function loadUiPos()
+    local ok,d=pcall(readfile,UI_POS_FILE)
+    if not ok or not d then return end
+    local x,y=d:match("^(-?%d+),(-?%d+)$")
+    if x then pan.Position=UDim2.new(0,tonumber(x),0,tonumber(y)) end
+end
+
 task.spawn(function()
     task.wait(1)
     local function scan()
@@ -106,7 +117,8 @@ local stopBtn=Instance.new("TextButton") stopBtn.Size=UDim2.new(0,30,0,30) stopB
 local dr,ds,ps
 ttl.InputBegan:Connect(function(i)if i.UserInputType==Enum.UserInputType.MouseButton1 then dr=true ds=i.Position ps=pan.Position end end)
 UIS.InputChanged:Connect(function(i)if dr and i.UserInputType==Enum.UserInputType.MouseMovement then local d=i.Position-ds pan.Position=UDim2.new(ps.X.Scale,ps.X.Offset+d.X,ps.Y.Scale,ps.Y.Offset+d.Y)end end)
-UIS.InputEnded:Connect(function(i)if i.UserInputType==Enum.UserInputType.MouseButton1 then dr=false end end)
+UIS.InputEnded:Connect(function(i)if i.UserInputType==Enum.UserInputType.MouseButton1 then if dr then saveUiPos() end dr=false end end)
+loadUiPos()
 minBtn.MouseButton1Click:Connect(function()pan.Visible=false bubble.Visible=true end)
 bubble.MouseButton1Click:Connect(function()bubble.Visible=false pan.Visible=true end)
 
@@ -140,13 +152,17 @@ ctrlFrame.Size=UDim2.new(1,0,0,yC+4)
 local statsFrame=Instance.new("Frame") statsFrame.Size=UDim2.new(1,0,0,10) statsFrame.Position=UDim2.new(0,0,0,62) statsFrame.BackgroundTransparency=1 statsFrame.BorderSizePixel=0 statsFrame.Visible=false statsFrame.Parent=pan
 local yS=4
 local function mkStat(txt)
-    local l=Instance.new("TextLabel") l.Size=UDim2.new(1,-10,0,20) l.Position=UDim2.new(0,5,0,yS) l.BackgroundColor3=Color3.fromRGB(28,28,28) l.TextColor3=Color3.fromRGB(160,220,160) l.Text=txt l.TextSize=11 l.Font=Enum.Font.Gotham l.BorderSizePixel=0 l.TextXAlignment=Enum.TextXAlignment.Left l.Parent=statsFrame
-    local p=Instance.new("UIPadding",l) p.PaddingLeft=UDim.new(0,6) Instance.new("UICorner",l).CornerRadius=UDim.new(0,4) yS=yS+23 return l
+    local l=Instance.new("TextLabel") l.Size=UDim2.new(1,-10,0,20) l.Position=UDim2.new(0,5,0,yS) l.BackgroundTransparency=1 l.TextColor3=Color3.fromRGB(255,255,255) l.Text=txt l.TextSize=11 l.Font=Enum.Font.GothamBold l.BorderSizePixel=0 l.TextXAlignment=Enum.TextXAlignment.Left l.Parent=statsFrame
+    local p=Instance.new("UIPadding",l) p.PaddingLeft=UDim.new(0,6)
+    local st=Instance.new("UIStroke",l) st.Color=Color3.fromRGB(0,0,0) st.Thickness=1.5 st.ApplyStrokeMode=Enum.ApplyStrokeMode.Contextual
+    yS=yS+23 return l
 end
 local function mkPair(tL,tR)
     local function mk(txt,xs,xo)
-        local l=Instance.new("TextLabel") l.Size=UDim2.new(0.5,-7,0,20) l.Position=UDim2.new(xs,xo,0,yS) l.BackgroundColor3=Color3.fromRGB(28,28,28) l.TextColor3=Color3.fromRGB(160,220,160) l.Text=txt l.TextSize=11 l.Font=Enum.Font.Gotham l.BorderSizePixel=0 l.TextXAlignment=Enum.TextXAlignment.Left l.Parent=statsFrame
-        Instance.new("UIPadding",l).PaddingLeft=UDim.new(0,5) Instance.new("UICorner",l).CornerRadius=UDim.new(0,4) return l
+        local l=Instance.new("TextLabel") l.Size=UDim2.new(0.5,-7,0,20) l.Position=UDim2.new(xs,xo,0,yS) l.BackgroundTransparency=1 l.TextColor3=Color3.fromRGB(255,255,255) l.Text=txt l.TextSize=11 l.Font=Enum.Font.GothamBold l.BorderSizePixel=0 l.TextXAlignment=Enum.TextXAlignment.Left l.Parent=statsFrame
+        Instance.new("UIPadding",l).PaddingLeft=UDim.new(0,5)
+        local st=Instance.new("UIStroke",l) st.Color=Color3.fromRGB(0,0,0) st.Thickness=1.5 st.ApplyStrokeMode=Enum.ApplyStrokeMode.Contextual
+        return l
     end
     local lL=mk(tL,0,5) local lR=mk(tR,0.5,2) yS=yS+23 return lL,lR
 end
@@ -156,7 +172,9 @@ local lCoinHr,lGoopHr=mkPair("/hr  --","/hr  --")
 local lCoinDay,lGoopDay=mkPair("/day --","/day --")
 local lSession=mkStat("Session:  0:00")
 local lFps=mkStat("FPS:      --")
-local resetBtn=Instance.new("TextButton") resetBtn.Size=UDim2.new(1,-10,0,22) resetBtn.Position=UDim2.new(0,5,0,yS) resetBtn.BackgroundColor3=Color3.fromRGB(40,40,80) resetBtn.TextColor3=Color3.fromRGB(150,150,255) resetBtn.Text="Reset Session" resetBtn.TextSize=11 resetBtn.Font=Enum.Font.Gotham resetBtn.BorderSizePixel=0 resetBtn.Parent=statsFrame Instance.new("UICorner",resetBtn).CornerRadius=UDim.new(0,4) yS=yS+26
+local resetBtn=Instance.new("TextButton") resetBtn.Size=UDim2.new(1,-10,0,22) resetBtn.Position=UDim2.new(0,5,0,yS) resetBtn.BackgroundTransparency=1 resetBtn.TextColor3=Color3.fromRGB(255,255,255) resetBtn.Text="Reset Session" resetBtn.TextSize=11 resetBtn.Font=Enum.Font.GothamBold resetBtn.BorderSizePixel=0 resetBtn.Parent=statsFrame Instance.new("UICorner",resetBtn).CornerRadius=UDim.new(0,4)
+local rst=Instance.new("UIStroke",resetBtn) rst.Color=Color3.fromRGB(0,0,0) rst.Thickness=1.5 rst.ApplyStrokeMode=Enum.ApplyStrokeMode.Contextual
+yS=yS+26
 statsFrame.Size=UDim2.new(1,0,0,yS+4)
 
 -- server frame (tab 3)
@@ -183,6 +201,9 @@ local function switchTab(t)
         tb.BackgroundColor3=(k==t) and Color3.fromRGB(50,50,70) or Color3.fromRGB(30,30,30)
         tb.TextColor3=(k==t) and Color3.fromRGB(220,220,220) or Color3.fromRGB(130,130,130)
     end
+    local isStats=(t=="stats")
+    pan.BackgroundTransparency=isStats and 0.85 or 0
+    ttl.BackgroundTransparency=isStats and 0.85 or 0
     pan.Size=UDim2.new(0,220,0,62+frames[t].Size.Y.Offset+6)
 end
 tabCtrl.MouseButton1Click:Connect(function()switchTab("ctrl")end)
