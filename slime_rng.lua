@@ -297,7 +297,7 @@ task.spawn(function()
         if S.tele and savedPos then
             local char=PL.Character
             local hrp=char and char:FindFirstChild("HumanoidRootPart")
-            if hrp and (hrp.Position-savedPos).Magnitude>20 then pcall(function()hrp.CFrame=CFrame.new(savedPos)end) end
+            if hrp and (hrp.Position-savedPos).Magnitude>20 then pcall(function()PL.Character:PivotTo(CFrame.new(savedPos))end) end
         end
     end
 end)
@@ -376,8 +376,8 @@ task.spawn(function()
             if #eids>0 then gunTarget=eids[1] end
             if gunTarget then
                 if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",gunTarget)end) end
-                shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,gunTarget)
-                shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,gunTarget)
+                shotCount=shotCount+1 pcall(function()hitRE:FireServer("confirmHit",shotCount,gunTarget)end)
+                shotCount=shotCount+1 pcall(function()hitRE:FireServer("confirmHit",shotCount,gunTarget)end)
             end
         end
         task.wait(0.05)
@@ -404,12 +404,9 @@ local _mt=getrawmetatable(game)
 local _old=_mt.__namecall
 setreadonly(_mt,false)
 _mt.__namecall=function(self,...)
-    local m=getnamecallmethod()
-    if m=="FireServer" then
-        local args={...}
-        if args[1]=="autoRejoin" and self.Parent and self.Parent.Name=="AutoRejoinService" then
-            return -- block the game's AFK rejoin
-        end
+    local args={...}
+    if args[1]=="autoRejoin" and self.Parent and self.Parent.Name=="AutoRejoinService" then
+        return -- block the game's AFK rejoin
     end
     return _old(self,...)
 end
