@@ -246,6 +246,12 @@ end)
 -- fps boost
 local EFFECT_TYPES={ParticleEmitter=true,Trail=true,Beam=true,Smoke=true,Fire=true,Sparkles=true,Decal=true,Texture=true,PointLight=true,SpotLight=true,SurfaceLight=true,BillboardGui=true,SurfaceGui=true,SelectionBox=true,SelectionSphere=true}
 local fpsActive=false
+local _VFX_DISABLE={ParticleEmitter=true,Trail=true,Beam=true,Smoke=true,Fire=true,Sparkles=true}
+workspace.DescendantAdded:Connect(function(v)
+    if fpsActive and _VFX_DISABLE[v.ClassName] then
+        pcall(function() v.Enabled=false end)
+    end
+end)
 fpsBtn.MouseButton1Click:Connect(function()
     fpsActive=true
     local Lighting=game:GetService("Lighting")
