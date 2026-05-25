@@ -86,9 +86,10 @@ local eids={}
 local GUN_RANGE=500
 task.spawn(function()
     while true do
-        local t={}
         local char=PL.Character
         local hrp=char and char:FindFirstChild("HumanoidRootPart")
+        local hrpPos=hrp and hrp.Position
+        local candidates={}
         for _,v in ipairs(workspace:GetChildren()) do
             if v.Name:match("^Gameplay%d+$") then
                 local ef=v:FindFirstChild("Enemies")
@@ -97,14 +98,23 @@ task.spawn(function()
                         local id=tonumber(e.Name)
                         if id then
                             local ep=e.PrimaryPart or e:FindFirstChildOfClass("BasePart")
-                            if not hrp or not ep or (ep.Position-hrp.Position).Magnitude<=GUN_RANGE then
-                                t[#t+1]=id
+                            local dist=hrpPos and ep and (ep.Position-hrpPos).Magnitude or 0
+                            if not hrpPos or not ep or dist<=GUN_RANGE then
+                                local hum=e:FindFirstChildOfClass("Humanoid")
+                                local hp=hum and hum.Health or math.huge
+                                candidates[#candidates+1]={id=id,hp=hp,dist=dist}
                             end
                         end
                     end
                 end
             end
         end
+        table.sort(candidates,function(a,b)
+            if a.hp~=b.hp then return a.hp<b.hp end
+            return a.dist<b.dist
+        end)
+        local t={}
+        for _,c in ipairs(candidates) do t[#t+1]=c.id end
         eids=t task.wait(0.5)
     end
 end)
@@ -352,16 +362,12 @@ task.spawn(function()
     end
 end)
 
--- gun: focus one target until dead, then immediately next; keep firing at last target if eids empty
+-- gun: always target lowest-hp enemy, fallback closest; list pre-sorted by enemy scan
 local gunTarget=nil
 task.spawn(function()
     while true do
         if hitRE and S.gun then
-            if #eids>0 then
-                local alive=false
-                for _,id in ipairs(eids) do if id==gunTarget then alive=true break end end
-                if not alive then gunTarget=eids[1] end
-            end
+            if #eids>0 then gunTarget=eids[1] end
             if gunTarget then
                 if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",gunTarget)end) end
                 shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,gunTarget)
