@@ -16,11 +16,11 @@ task.spawn(function()
 end)
 
 local hitRE,gunRF,shotCount=nil,nil,0
-local S={gun=false,roll=false,collect=false,tele=false,black=false}
+local S={gun=false,roll=false,collect=false,tele=false,black=false,slimehp=false}
 local rfs={}
 
 local SAVE_FILE="slime_rng_state.txt"
-local SKEYS={"gun","roll","collect","tele","black"}
+local SKEYS={"gun","roll","collect","tele","black","slimehp"}
 local function saveState()
     local parts={}
     for _,k in ipairs(SKEYS) do parts[#parts+1]=k.."="..(S[k] and "1" or "0") end
@@ -183,6 +183,7 @@ stopBtn.MouseButton1Click:Connect(function()
 end)
 T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Auto Return","tele")
 T("Black Screen","black",function(on)blackScreen.Visible=on end)
+T("Slime HP","slimehp")
 local savePosBtn=Instance.new("TextButton") savePosBtn.Size=UDim2.new(1,-10,0,24) savePosBtn.Position=UDim2.new(0,5,0,yC) savePosBtn.BackgroundColor3=Color3.fromRGB(35,55,80) savePosBtn.TextColor3=Color3.fromRGB(120,180,255) savePosBtn.Text="Save Position" savePosBtn.TextSize=12 savePosBtn.Font=Enum.Font.Gotham savePosBtn.BorderSizePixel=0 savePosBtn.Parent=ctrlFrame Instance.new("UICorner",savePosBtn).CornerRadius=UDim.new(0,4) yC=yC+28
 local fpsBtn=Instance.new("TextButton") fpsBtn.Size=UDim2.new(1,-10,0,24) fpsBtn.Position=UDim2.new(0,5,0,yC) fpsBtn.BackgroundColor3=Color3.fromRGB(50,35,15) fpsBtn.TextColor3=Color3.fromRGB(255,180,60) fpsBtn.Text="FPS Boost" fpsBtn.TextSize=12 fpsBtn.Font=Enum.Font.Gotham fpsBtn.BorderSizePixel=0 fpsBtn.Parent=ctrlFrame Instance.new("UICorner",fpsBtn).CornerRadius=UDim.new(0,4) yC=yC+28
 ctrlFrame.Size=UDim2.new(1,0,0,yC+4)
@@ -301,6 +302,50 @@ savePosBtn.MouseButton1Click:Connect(function()
         savePosFile()
         savePosBtn.Text="Saved!"
         task.delay(1.5,function()savePosBtn.Text="Save Position"end)
+    end
+end)
+
+-- slime hp: blast every writable health value on equipped slimes to 999 undecillion
+local SLIME_HP=999e36
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        if S.slimehp then
+            local mv=workspace:FindFirstChild("MultiplayerView")
+            if mv then
+                for _,folder in ipairs(mv:GetChildren()) do
+                    local sf=folder:FindFirstChild("Slimes")
+                    if sf then
+                        for _,model in ipairs(sf:GetChildren()) do
+                            if model:IsA("Model") then
+                                -- attributes
+                                pcall(function()model:SetAttribute("Health",SLIME_HP)end)
+                                pcall(function()model:SetAttribute("MaxHealth",SLIME_HP)end)
+                                pcall(function()model:SetAttribute("hp",SLIME_HP)end)
+                                pcall(function()model:SetAttribute("maxHp",SLIME_HP)end)
+                                -- value objects
+                                for _,v in ipairs(model:GetDescendants()) do
+                                    local n=v.Name:lower()
+                                    if (n=="health" or n=="maxhealth" or n=="hp" or n=="maxhp")
+                                    and (v:IsA("NumberValue") or v:IsA("IntValue")) then
+                                        pcall(function()v.Value=SLIME_HP end)
+                                    end
+                                end
+                                -- health bar visual
+                                for _,v in ipairs(model:GetDescendants()) do
+                                    if v.Name=="Bar" and v:IsA("ImageLabel") then
+                                        pcall(function()v.Size=UDim2.new(1,0,1,0)end)
+                                    end
+                                    if v.Name=="Hp" and v:IsA("TextLabel") then
+                                        pcall(function()v.Text="999Ud/999Ud"end)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
     end
 end)
 
