@@ -433,22 +433,21 @@ local function getFruitIdMap()
     end
     _fruitIdMap=map return map
 end
-local _CLIST_PATH={"PlayerGui","Root","Inventory","PageItemsContent","ItemsInventoryPage","DefaultItemsView","ConsumablesPanel","ConsumablesList"}
+local _invUtils=nil
+local function getInvUtils()
+    if _invUtils then return _invUtils end
+    local ok,m=pcall(require,RS.Source.InventoryItemUtils)
+    if ok and m then _invUtils=m end
+    return _invUtils
+end
 local function getFruitCount(itemName)
     if not itemName or itemName=="" then return 0 end
     local id=getFruitIdMap()[itemName:lower()] or itemName
     if not CAPPED_FRUITS[id] then return 0 end
-    local node=PL
-    for _,n in ipairs(_CLIST_PATH) do node=node:FindFirstChild(n) if not node then return 0 end end
-    local btn=node:FindFirstChild(id.."ItemButton")
-    if not btn then return 0 end
-    for _,c in ipairs(btn:GetChildren()) do
-        if c:IsA("TextLabel") then
-            local n=tonumber(c.Text:match("^x(%d+)$"))
-            if n then return n end
-        end
-    end
-    return 0
+    local utils=getInvUtils()
+    if not utils then return 0 end
+    local ok,n=pcall(utils.getAmountOwned,id)
+    return (ok and type(n)=="number") and n or 0
 end
 local function fruitModel(inst)
     local m=inst while m and not m:IsA("Model") do m=m.Parent end return m
