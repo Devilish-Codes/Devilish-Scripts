@@ -254,10 +254,6 @@ fpsBtn.MouseButton1Click:Connect(function()
     fpsBtn.Text="Cleared "..removed
     task.delay(2,function()if fpsBtn and fpsBtn.Parent then fpsBtn.Text="FPS Boost" end end)
 end)
--- suppress new effects added to the scene after boost is applied
-workspace.DescendantAdded:Connect(function(v)
-    if fpsActive and EFFECT_TYPES[v.ClassName] then pcall(v.Destroy,v) end
-end)
 
 -- save position button
 savePosBtn.MouseButton1Click:Connect(function()
