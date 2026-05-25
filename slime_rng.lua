@@ -39,10 +39,24 @@ loadState()
 local savedPos=nil
 local POS_FILE="slime_rng_pos.txt"
 local function savePosFile()
-    if savedPos then pcall(writefile,POS_FILE,savedPos.X..","..savedPos.Y..","..savedPos.Z) end
+    if not savedPos then return end
+    local str=savedPos.X..","..savedPos.Y..","..savedPos.Z
+    -- try file I/O first, fall back to CoreGui StringValue
+    local ok=pcall(writefile,POS_FILE,str)
+    if not ok then
+        local store=game:GetService("CoreGui"):FindFirstChild("_SlimeRNGPos")
+            or Instance.new("StringValue",game:GetService("CoreGui"))
+        store.Name="_SlimeRNGPos" store.Value=str
+    end
 end
 local function loadPosFile()
+    -- try file first
     local ok,d=pcall(readfile,POS_FILE)
+    -- fall back to CoreGui StringValue
+    if not ok or not d then
+        local store=game:GetService("CoreGui"):FindFirstChild("_SlimeRNGPos")
+        if store then d=store.Value ok=true end
+    end
     if not ok or not d then return end
     local x,y,z=d:match("^([-%.%d]+),([-%.%d]+),([-%.%d]+)$")
     if x then savedPos=Vector3.new(tonumber(x),tonumber(y),tonumber(z)) end
