@@ -355,7 +355,7 @@ task.spawn(function()
                 shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,gunTarget)
             end
         end
-        task.wait(0.05)
+        task.wait()
     end
 end)
 
