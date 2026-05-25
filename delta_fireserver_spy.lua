@@ -24,15 +24,15 @@ end
 
 -- top bar
 local pan = Instance.new("Frame")
-pan.Size = UDim2.new(0,220,0,36)
-pan.Position = UDim2.new(0.5,-110,0,12)
+pan.Size = UDim2.new(0,256,0,36)
+pan.Position = UDim2.new(0.5,-128,0,12)
 pan.BackgroundColor3 = Color3.fromRGB(20,20,20)
 pan.BorderSizePixel = 0
 pan.Parent = g
 Instance.new("UICorner", pan).CornerRadius = UDim.new(0,8)
 
 local btn = Instance.new("TextButton")
-btn.Size = UDim2.new(1,-38,1,-8)
+btn.Size = UDim2.new(1,-74,1,-8)
 btn.Position = UDim2.new(0,4,0,4)
 btn.BackgroundColor3 = Color3.fromRGB(25,70,25)
 btn.TextColor3 = Color3.fromRGB(80,230,80)
@@ -42,6 +42,18 @@ btn.Font = Enum.Font.GothamBold
 btn.BorderSizePixel = 0
 btn.Parent = pan
 Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
+
+local hideBtn = Instance.new("TextButton")
+hideBtn.Size = UDim2.new(0,28,1,-8)
+hideBtn.Position = UDim2.new(1,-68,0,4)
+hideBtn.BackgroundColor3 = Color3.fromRGB(40,40,100)
+hideBtn.TextColor3 = Color3.fromRGB(180,180,255)
+hideBtn.Text = "H"
+hideBtn.TextSize = 13
+hideBtn.Font = Enum.Font.GothamBold
+hideBtn.BorderSizePixel = 0
+hideBtn.Parent = pan
+Instance.new("UICorner", hideBtn).CornerRadius = UDim.new(0,6)
 
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0,28,1,-8)
@@ -172,6 +184,12 @@ btn.MouseButton1Click:Connect(function()
         btn.TextColor3 = Color3.fromRGB(230,80,80)
         win.Visible = false
     end
+end)
+
+hideBtn.MouseButton1Click:Connect(function()
+    win.Visible = not win.Visible
+    hideBtn.BackgroundColor3 = win.Visible and Color3.fromRGB(40,40,100) or Color3.fromRGB(80,60,20)
+    hideBtn.TextColor3 = win.Visible and Color3.fromRGB(180,180,255) or Color3.fromRGB(255,200,80)
 end)
 
 closeBtn.MouseButton1Click:Connect(function()
