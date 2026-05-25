@@ -454,11 +454,7 @@ task.spawn(function()
                 for pp in pairs(ppCache) do
                     if pp and pp.Enabled then
                         local m=fruitModel(pp)
-                        if m then
-                            local cnt=getFruitCount(m.Name)
-                            warn("[CAP DEBUG] model="..tostring(m.Name).." count="..cnt.." cap="..FRUIT_CAP.." blocked="..(cnt>=FRUIT_CAP and "YES" or "NO"))
-                            if cnt<FRUIT_CAP then pcall(fireproximityprompt,pp) end
-                        else
+                        if not m or getFruitCount(m.Name)<FRUIT_CAP then
                             pcall(fireproximityprompt,pp)
                         end
                     end
