@@ -372,7 +372,6 @@ task.spawn(function()
                 if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",gunTarget)end) end
                 shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,gunTarget)
                 shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,gunTarget)
-                shotCount=shotCount+1 hitRE:FireServer("confirmHit",shotCount,gunTarget)
             end
         end
         task.wait(0.05)
