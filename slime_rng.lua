@@ -369,7 +369,7 @@ end
 setreadonly(_mt,true)
 
 -- fruit inventory cap: skip collecting a fruit if already at/above this count
-local FRUIT_CAP=200
+local FRUIT_CAP=384
 local CAPPED_FRUITS={lightningFruit=true,iceFruit=true,fireFruit=true,universeFruit=true,magicianFruit=true,swordFruit=true}
 local _fruitIdMap=nil
 local function getFruitIdMap()
