@@ -513,12 +513,13 @@ local _hooked=false
 -- try hookmetamethod first (Synapse X, Fluxus, KRNL)
 if not _hooked and hookmetamethod then
     pcall(function()
-        local _old=hookmetamethod(game,"__namecall",function(self,...)
+        local _old
+        _old=hookmetamethod(game,"__namecall",function(self,...)
             local method=getnamecallmethod()
             if method=="autoRejoin" and self.Parent and self.Parent.Name=="AutoRejoinService" and not _allowRejoin then return end
             return _old(self,...)
         end)
-        _hooked=true
+        if type(_old)=="function" then _hooked=true end
     end)
 end
 -- fallback: raw metatable swap (Delta, Potassium, others)
@@ -533,7 +534,7 @@ if not _hooked then
             return _old(self,...)
         end)
         if setreadonly then setreadonly(_mt,true) end
-        _hooked=true
+        if type(_old)=="function" then _hooked=true end
     end)
 end
 
