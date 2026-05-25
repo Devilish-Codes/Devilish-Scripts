@@ -371,14 +371,7 @@ setreadonly(_mt,true)
 -- fruit inventory cap: skip collecting a fruit if already at/above this count
 local FRUIT_CAP=200
 local CAPPED_FRUITS={lightningFruit=true,iceFruit=true,fireFruit=true,universeFruit=true,magicianFruit=true,swordFruit=true}
-local _IU=nil
 local _fruitIdMap=nil
-local function getIU()
-    if _IU then return _IU end
-    local ok,m=pcall(require,RS.Source.Features.Inventory.InventoryItemUtils)
-    if ok then _IU=m end
-    return _IU
-end
 local function getFruitIdMap()
     if _fruitIdMap then return _fruitIdMap end
     local ok,Fr=pcall(require,RS.Source.Game.Items.Fruits)
@@ -393,13 +386,22 @@ local function getFruitIdMap()
     end
     _fruitIdMap=map return map
 end
+local _CLIST_PATH={"PlayerGui","Root","Inventory","PageItemsContent","ItemsInventoryPage","DefaultItemsView","ConsumablesPanel","ConsumablesList"}
 local function getFruitCount(itemName)
     if not itemName or itemName=="" then return 0 end
     local id=getFruitIdMap()[itemName:lower()] or itemName
     if not CAPPED_FRUITS[id] then return 0 end
-    local iu=getIU() if not iu then return 0 end
-    local ok,n=pcall(iu.getAmountOwned,id)
-    return (ok and type(n)=="number") and n or 0
+    local node=PL
+    for _,n in ipairs(_CLIST_PATH) do node=node:FindFirstChild(n) if not node then return 0 end end
+    local btn=node:FindFirstChild(id.."ItemButton")
+    if not btn then return 0 end
+    for _,c in ipairs(btn:GetChildren()) do
+        if c:IsA("TextLabel") then
+            local n=tonumber(c.Text:match("^x(%d+)$"))
+            if n then return n end
+        end
+    end
+    return 0
 end
 local function fruitModel(inst)
     local m=inst while m and not m:IsA("Model") do m=m.Parent end return m
