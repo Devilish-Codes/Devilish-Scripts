@@ -194,7 +194,9 @@ end)
 T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Auto Return","tele")
 T("Black Screen","black",function(on)blackScreen.Visible=on end)
 T("Sync Rolls","syncrolls",function(on)
-    if not on then
+    if on then
+        if syncStatusLbl then syncStatusLbl.Visible=true end
+    else
         syncReady=false
         for _,rt in ipairs(ROLL_TYPES) do
             if clientPaused[rt] then
@@ -205,11 +207,11 @@ T("Sync Rolls","syncrolls",function(on)
                 clientPaused[rt]=false
             end
         end
-        if syncStatusLbl then syncStatusLbl.Text="G:-- D:-- V:-- X:--" syncStatusLbl.TextColor3=Color3.fromRGB(100,100,100) end
+        if syncStatusLbl then syncStatusLbl.Visible=false end
     end
 end)
--- roll count display: gray=off, yellow=waiting for all<100, blue=actively pausing
-local _ssl=Instance.new("TextLabel") _ssl.Size=UDim2.new(1,-10,0,12) _ssl.Position=UDim2.new(0,5,0,yC) _ssl.BackgroundTransparency=1 _ssl.TextColor3=Color3.fromRGB(100,100,100) _ssl.Text="G:-- D:-- V:-- X:--" _ssl.TextSize=9 _ssl.Font=Enum.Font.Code _ssl.TextXAlignment=Enum.TextXAlignment.Left _ssl.Parent=ctrlFrame
+-- roll count display: only visible when sync rolls is ON
+local _ssl=Instance.new("TextLabel") _ssl.Size=UDim2.new(1,-10,0,12) _ssl.Position=UDim2.new(0,5,0,yC) _ssl.BackgroundTransparency=1 _ssl.TextColor3=Color3.fromRGB(100,100,100) _ssl.Text="G:-- D:-- V:-- X:--" _ssl.TextSize=9 _ssl.Font=Enum.Font.Code _ssl.TextXAlignment=Enum.TextXAlignment.Left _ssl.Visible=false _ssl.Parent=ctrlFrame
 syncStatusLbl=_ssl yC=yC+14
 local savePosBtn=Instance.new("TextButton") savePosBtn.Size=UDim2.new(1,-10,0,24) savePosBtn.Position=UDim2.new(0,5,0,yC) savePosBtn.BackgroundColor3=Color3.fromRGB(35,55,80) savePosBtn.TextColor3=Color3.fromRGB(120,180,255) savePosBtn.Text="Save Position" savePosBtn.TextSize=12 savePosBtn.Font=Enum.Font.Gotham savePosBtn.BorderSizePixel=0 savePosBtn.Parent=ctrlFrame Instance.new("UICorner",savePosBtn).CornerRadius=UDim.new(0,4) yC=yC+28
 local fpsBtn=Instance.new("TextButton") fpsBtn.Size=UDim2.new(1,-10,0,24) fpsBtn.Position=UDim2.new(0,5,0,yC) fpsBtn.BackgroundColor3=Color3.fromRGB(50,35,15) fpsBtn.TextColor3=Color3.fromRGB(255,180,60) fpsBtn.Text="FPS Boost" fpsBtn.TextSize=12 fpsBtn.Font=Enum.Font.Gotham fpsBtn.BorderSizePixel=0 fpsBtn.Parent=ctrlFrame Instance.new("UICorner",fpsBtn).CornerRadius=UDim.new(0,4) yC=yC+28
