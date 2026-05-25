@@ -205,12 +205,12 @@ T("Sync Rolls","syncrolls",function(on)
                 clientPaused[rt]=false
             end
         end
-        if syncStatusLbl then syncStatusLbl.Text="Gld:-- Dia:-- Vd:-- Gx:--" syncStatusLbl.TextColor3=Color3.fromRGB(100,100,100) end
+        if syncStatusLbl then syncStatusLbl.Text="G:-- D:-- V:-- X:--" syncStatusLbl.TextColor3=Color3.fromRGB(100,100,100) end
     end
 end)
 -- roll count display: gray=off, yellow=waiting for all<100, blue=actively pausing
-local _ssl=Instance.new("TextLabel") _ssl.Size=UDim2.new(1,-10,0,16) _ssl.Position=UDim2.new(0,5,0,yC) _ssl.BackgroundTransparency=1 _ssl.TextColor3=Color3.fromRGB(100,100,100) _ssl.Text="Gld:-- Dia:-- Vd:-- Gx:--" _ssl.TextSize=10 _ssl.Font=Enum.Font.Code _ssl.TextXAlignment=Enum.TextXAlignment.Left _ssl.Parent=ctrlFrame
-syncStatusLbl=_ssl yC=yC+18
+local _ssl=Instance.new("TextLabel") _ssl.Size=UDim2.new(1,-10,0,12) _ssl.Position=UDim2.new(0,5,0,yC) _ssl.BackgroundTransparency=1 _ssl.TextColor3=Color3.fromRGB(100,100,100) _ssl.Text="G:-- D:-- V:-- X:--" _ssl.TextSize=9 _ssl.Font=Enum.Font.Code _ssl.TextXAlignment=Enum.TextXAlignment.Left _ssl.Parent=ctrlFrame
+syncStatusLbl=_ssl yC=yC+14
 local savePosBtn=Instance.new("TextButton") savePosBtn.Size=UDim2.new(1,-10,0,24) savePosBtn.Position=UDim2.new(0,5,0,yC) savePosBtn.BackgroundColor3=Color3.fromRGB(35,55,80) savePosBtn.TextColor3=Color3.fromRGB(120,180,255) savePosBtn.Text="Save Position" savePosBtn.TextSize=12 savePosBtn.Font=Enum.Font.Gotham savePosBtn.BorderSizePixel=0 savePosBtn.Parent=ctrlFrame Instance.new("UICorner",savePosBtn).CornerRadius=UDim.new(0,4) yC=yC+28
 local fpsBtn=Instance.new("TextButton") fpsBtn.Size=UDim2.new(1,-10,0,24) fpsBtn.Position=UDim2.new(0,5,0,yC) fpsBtn.BackgroundColor3=Color3.fromRGB(50,35,15) fpsBtn.TextColor3=Color3.fromRGB(255,180,60) fpsBtn.Text="FPS Boost" fpsBtn.TextSize=12 fpsBtn.Font=Enum.Font.Gotham fpsBtn.BorderSizePixel=0 fpsBtn.Parent=ctrlFrame Instance.new("UICorner",fpsBtn).CornerRadius=UDim.new(0,4) yC=yC+28
 ctrlFrame.Size=UDim2.new(1,0,0,yC+4)
@@ -459,7 +459,7 @@ local function handleSyncRolls()
     if syncStatusLbl then
         local r=rollProgress
         local function f(v) return v>=math.huge and "--" or tostring(v) end
-        syncStatusLbl.Text=string.format("Gld:%-4s Dia:%-4s Vd:%-4s Gx:%-4s",f(r.golden.r),f(r.diamond.r),f(r.void.r),f(r.galaxy.r))
+        syncStatusLbl.Text=string.format("G:%-4s D:%-4s V:%-4s X:%-4s",f(r.golden.r),f(r.diamond.r),f(r.void.r),f(r.galaxy.r))
         syncStatusLbl.TextColor3=syncReady and Color3.fromRGB(80,180,255) or Color3.fromRGB(200,160,40)
     end
 end
