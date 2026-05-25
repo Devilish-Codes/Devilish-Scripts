@@ -500,7 +500,7 @@ task.spawn(function()
     end
 end)
 
--- anti-AFK: block the game's AutoRejoinService from firing autoRejoin to the server
+-- anti-AFK: prevent Roblox idle kick + block game's AutoRejoinService
 local VU=game:GetService("VirtualUser")
 PL.Idled:Connect(function()
     pcall(function()
@@ -509,17 +509,33 @@ PL.Idled:Connect(function()
         VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
     end)
 end)
-local _mt=getrawmetatable(game)
-local _old=_mt.__namecall
-if setreadonly then setreadonly(_mt,false) end
-_mt.__namecall=function(self,...)
-    local method=(getnamecallmethod and getnamecallmethod()) or ({...})[1]
-    if method=="autoRejoin" and self.Parent and self.Parent.Name=="AutoRejoinService" and not _allowRejoin then
-        return -- block the game's AFK rejoin
-    end
-    return _old(self,...)
+local _hooked=false
+-- try hookmetamethod first (Synapse X, Fluxus, KRNL)
+if not _hooked and hookmetamethod then
+    pcall(function()
+        local _old=hookmetamethod(game,"__namecall",function(self,...)
+            local method=getnamecallmethod()
+            if method=="autoRejoin" and self.Parent and self.Parent.Name=="AutoRejoinService" and not _allowRejoin then return end
+            return _old(self,...)
+        end)
+        _hooked=true
+    end)
 end
-if setreadonly then setreadonly(_mt,true) end
+-- fallback: raw metatable swap (Delta, Potassium, others)
+if not _hooked then
+    pcall(function()
+        local _mt=getrawmetatable(game)
+        local _old=rawget(_mt,"__namecall")
+        if setreadonly then setreadonly(_mt,false) end
+        rawset(_mt,"__namecall",function(self,...)
+            local method=getnamecallmethod and getnamecallmethod()
+            if method=="autoRejoin" and self.Parent and self.Parent.Name=="AutoRejoinService" and not _allowRejoin then return end
+            return _old(self,...)
+        end)
+        if setreadonly then setreadonly(_mt,true) end
+        _hooked=true
+    end)
+end
 
 -- fruit inventory cap: skip collecting a fruit if already at/above this count
 local FRUIT_CAP=200
