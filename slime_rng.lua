@@ -500,41 +500,24 @@ task.spawn(function()
     end
 end)
 
--- anti-AFK: prevent Roblox idle kick + block game's AutoRejoinService
-local VU=game:GetService("VirtualUser")
-PL.Idled:Connect(function()
-    pcall(function()
-        VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-        task.wait(1)
-        VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-    end)
+-- anti-AFK: disable AutoRejoin module directly; fallback to VirtualUser every 10min
+local _afkOk=false
+pcall(function()
+    local _m=require(RS.Source.Features.AutoRejoin.AutoRejoinServiceClient)
+    _m.disable()
+    _afkOk=true
 end)
-local _hooked=false
--- try hookmetamethod first (Synapse X, Fluxus, KRNL)
-if not _hooked and hookmetamethod then
-    pcall(function()
-        local _old
-        _old=hookmetamethod(game,"__namecall",function(self,...)
-            local method=getnamecallmethod()
-            if method=="FireServer" and self.Parent and self.Parent.Name=="AutoRejoinService" and ({...})[1]=="autoRejoin" and not _allowRejoin then return end
-            return _old(self,...)
-        end)
-        if type(_old)=="function" then _hooked=true end
-    end)
-end
--- fallback: raw metatable swap (Delta, Potassium, others)
-if not _hooked then
-    pcall(function()
-        local _mt=getrawmetatable(game)
-        local _old=rawget(_mt,"__namecall")
-        if setreadonly then setreadonly(_mt,false) end
-        rawset(_mt,"__namecall",function(self,...)
-            local method=getnamecallmethod and getnamecallmethod()
-            if method=="FireServer" and self.Parent and self.Parent.Name=="AutoRejoinService" and ({...})[1]=="autoRejoin" and not _allowRejoin then return end
-            return _old(self,...)
-        end)
-        if setreadonly then setreadonly(_mt,true) end
-        if type(_old)=="function" then _hooked=true end
+if not _afkOk then
+    local VU=game:GetService("VirtualUser")
+    task.spawn(function()
+        while true do
+            task.wait(600)
+            pcall(function()
+                VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+                task.wait(1)
+                VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+            end)
+        end
     end)
 end
 
