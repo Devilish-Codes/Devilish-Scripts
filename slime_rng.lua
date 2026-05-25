@@ -49,11 +49,14 @@ local function loadPosFile()
 end
 loadPosFile()
 
+local pan -- forward declare so saveUiPos/loadUiPos can close over it
 local UI_POS_FILE="slime_rng_uipos.txt"
 local function saveUiPos()
+    if not pan then return end
     pcall(writefile,UI_POS_FILE,pan.Position.X.Offset..","..pan.Position.Y.Offset)
 end
 local function loadUiPos()
+    if not pan then return end
     local ok,d=pcall(readfile,UI_POS_FILE)
     if not ok or not d then return end
     local x,y=d:match("^(-?%d+),(-?%d+)$")
@@ -108,7 +111,7 @@ pcall(function()blackGui.Parent=gethui()end)
 if not blackGui.Parent then blackGui.Parent=game:GetService("CoreGui")end
 local blackScreen=Instance.new("Frame") blackScreen.Size=UDim2.new(1,0,1,0) blackScreen.BackgroundColor3=Color3.fromRGB(0,0,0) blackScreen.BorderSizePixel=0 blackScreen.Visible=S.black blackScreen.Parent=blackGui
 
-local pan=Instance.new("Frame") pan.Size=UDim2.new(0,220,0,10) pan.Position=UDim2.new(0,12,0,12) pan.BackgroundColor3=Color3.fromRGB(20,20,20) pan.BorderSizePixel=0 pan.Parent=g Instance.new("UICorner",pan).CornerRadius=UDim.new(0,8)
+pan=Instance.new("Frame") pan.Size=UDim2.new(0,220,0,10) pan.Position=UDim2.new(0,12,0,12) pan.BackgroundColor3=Color3.fromRGB(20,20,20) pan.BorderSizePixel=0 pan.Parent=g Instance.new("UICorner",pan).CornerRadius=UDim.new(0,8)
 local bubble=Instance.new("TextButton") bubble.Size=UDim2.new(0,44,0,44) bubble.Position=UDim2.new(1,-56,0,12) bubble.BackgroundColor3=Color3.fromRGB(35,35,35) bubble.TextColor3=Color3.fromRGB(220,220,220) bubble.Text="S" bubble.TextSize=16 bubble.Font=Enum.Font.GothamBold bubble.BorderSizePixel=0 bubble.Visible=false bubble.Parent=g Instance.new("UICorner",bubble).CornerRadius=UDim.new(1,0)
 local ttl=Instance.new("TextLabel") ttl.Size=UDim2.new(1,-68,0,30) ttl.BackgroundColor3=Color3.fromRGB(35,35,35) ttl.TextColor3=Color3.fromRGB(220,220,220) ttl.Text="Lxcifer Scripts" ttl.TextSize=13 ttl.Font=Enum.Font.GothamBold ttl.BorderSizePixel=0 ttl.Parent=pan Instance.new("UICorner",ttl).CornerRadius=UDim.new(0,8)
 local minBtn=Instance.new("TextButton") minBtn.Size=UDim2.new(0,30,0,30) minBtn.Position=UDim2.new(1,-64,0,0) minBtn.BackgroundColor3=Color3.fromRGB(60,60,60) minBtn.TextColor3=Color3.fromRGB(220,220,220) minBtn.Text="_" minBtn.TextSize=16 minBtn.Font=Enum.Font.GothamBold minBtn.BorderSizePixel=0 minBtn.ZIndex=2 minBtn.Parent=pan Instance.new("UICorner",minBtn).CornerRadius=UDim.new(0,6)
