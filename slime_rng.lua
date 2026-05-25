@@ -83,15 +83,24 @@ task.spawn(function()
 end)
 
 local eids={}
+local GUN_RANGE=500
 task.spawn(function()
     while true do
         local t={}
+        local char=PL.Character
+        local hrp=char and char:FindFirstChild("HumanoidRootPart")
         for _,v in ipairs(workspace:GetChildren()) do
             if v.Name:match("^Gameplay%d+$") then
                 local ef=v:FindFirstChild("Enemies")
                 if ef then
                     for _,e in ipairs(ef:GetChildren()) do
-                        local id=tonumber(e.Name) if id then t[#t+1]=id end
+                        local id=tonumber(e.Name)
+                        if id then
+                            local ep=e.PrimaryPart or e:FindFirstChildOfClass("BasePart")
+                            if not hrp or not ep or (ep.Position-hrp.Position).Magnitude<=GUN_RANGE then
+                                t[#t+1]=id
+                            end
+                        end
                     end
                 end
             end
@@ -102,11 +111,7 @@ end)
 
 
 local _iconUrl=""
-pcall(function()
-    local _d=readfile("C:/Users/Sidon/OneDrive/Desktop/pfp_bg7_p03_scarlet.png")
-    writefile("scarlet_icon.png",_d)
-    _iconUrl=getcustomasset("scarlet_icon.png")
-end)
+pcall(function() _iconUrl=getcustomasset("pfp_bg7_p03_scarlet.png") end)
 
 local g=Instance.new("ScreenGui") g.Name="SlimeGui" g.ResetOnSpawn=false g.DisplayOrder=1
 pcall(function()g.Parent=gethui()end)
