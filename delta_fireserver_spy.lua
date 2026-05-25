@@ -230,11 +230,11 @@ task.spawn(function()
         local oldNC = mt.__namecall
         mt.__namecall = function(self, ...)
             if not _inHook then
-                local method = getnamecallmethod()
-                if active and (method == "FireServer" or method == "InvokeServer") then
-                    _inHook = true
-                    local args = {...}
-                    pcall(function()
+                _inHook = true
+                local args = {...}
+                pcall(function()
+                    local method = getnamecallmethod()
+                    if active and (method == "FireServer" or method == "InvokeServer") then
                         local _, isRE = pcall(function() return self:IsA("RemoteEvent") end)
                         local _, isRF = pcall(function() return self:IsA("RemoteFunction") end)
                         if isRE or isRF then
@@ -245,9 +245,9 @@ task.spawn(function()
                             end
                             log("[->] "..path.." | "..table.concat(p,", "), Color3.fromRGB(255,220,80))
                         end
-                    end)
-                    _inHook = false
-                end
+                    end
+                end)
+                _inHook = false
             end
             return oldNC(self, ...)
         end
