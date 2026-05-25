@@ -516,7 +516,7 @@ if not _hooked and hookmetamethod then
         local _old
         _old=hookmetamethod(game,"__namecall",function(self,...)
             local method=getnamecallmethod()
-            if method=="autoRejoin" and self.Parent and self.Parent.Name=="AutoRejoinService" and not _allowRejoin then return end
+            if method=="FireServer" and self.Parent and self.Parent.Name=="AutoRejoinService" and ({...})[1]=="autoRejoin" and not _allowRejoin then return end
             return _old(self,...)
         end)
         if type(_old)=="function" then _hooked=true end
@@ -530,7 +530,7 @@ if not _hooked then
         if setreadonly then setreadonly(_mt,false) end
         rawset(_mt,"__namecall",function(self,...)
             local method=getnamecallmethod and getnamecallmethod()
-            if method=="autoRejoin" and self.Parent and self.Parent.Name=="AutoRejoinService" and not _allowRejoin then return end
+            if method=="FireServer" and self.Parent and self.Parent.Name=="AutoRejoinService" and ({...})[1]=="autoRejoin" and not _allowRejoin then return end
             return _old(self,...)
         end)
         if setreadonly then setreadonly(_mt,true) end
