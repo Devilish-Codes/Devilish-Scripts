@@ -183,19 +183,10 @@ statsFrame.Size=UDim2.new(1,0,0,yS+4)
 -- server frame (tab 3)
 local serverFrame=Instance.new("Frame") serverFrame.Size=UDim2.new(1,0,0,58) serverFrame.Position=UDim2.new(0,0,0,62) serverFrame.BackgroundTransparency=1 serverFrame.BorderSizePixel=0 serverFrame.Visible=false serverFrame.Parent=pan
 local rejoinBtn=Instance.new("TextButton") rejoinBtn.Size=UDim2.new(1,-10,0,34) rejoinBtn.Position=UDim2.new(0,5,0,12) rejoinBtn.BackgroundColor3=Color3.fromRGB(35,40,70) rejoinBtn.TextColor3=Color3.fromRGB(160,180,255) rejoinBtn.Text="Rejoin Server" rejoinBtn.TextSize=13 rejoinBtn.Font=Enum.Font.GothamBold rejoinBtn.BorderSizePixel=0 rejoinBtn.Parent=serverFrame Instance.new("UICorner",rejoinBtn).CornerRadius=UDim.new(0,6)
-local function findAutoRejoinRE()
-    for _,v in ipairs(RS:GetDescendants())do
-        if v:IsA("RemoteEvent") and v.Parent and v.Parent.Name=="AutoRejoinService" then return v end
-    end
-end
 rejoinBtn.MouseButton1Click:Connect(function()
-    rejoinBtn.Text="Rejoining..."
-    local re=findAutoRejoinRE()
-    if re then
-        _allowRejoin=true
-        pcall(function()re:FireServer("autoRejoin")end)
-        _allowRejoin=false
-    else pcall(function()TS:TeleportToPlaceInstance(game.PlaceId,game.JobId,PL)end) end
+    rejoinBtn.Text="Leaving..."
+    task.wait(0.5)
+    PL:Kick("Rejoining")
 end)
 
 -- tab switching
@@ -383,7 +374,6 @@ PL.Idled:Connect(function()
         VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
     end)
 end)
-local _allowRejoin=false
 local _mt=getrawmetatable(game)
 local _old=_mt.__namecall
 setreadonly(_mt,false)
@@ -392,7 +382,6 @@ _mt.__namecall=function(self,...)
     if m=="FireServer" then
         local args={...}
         if args[1]=="autoRejoin" and self.Parent and self.Parent.Name=="AutoRejoinService" then
-            if _allowRejoin then return _old(self,...) end
             return -- block the game's AFK rejoin
         end
     end
