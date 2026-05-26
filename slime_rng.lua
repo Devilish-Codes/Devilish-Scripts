@@ -17,10 +17,11 @@ task.spawn(function()
     end
 end)
 
-local goopSvc,gameplaySvc,rollSvc
+local goopSvc,gameplaySvc,rollSvc,zoneSvc
 pcall(function() goopSvc=require(RS.Source.Features.GoopGun.GoopGunServiceClient) end)
 pcall(function() gameplaySvc=require(RS.Source.Features.Gameplay.GameplayServiceClient) end)
 pcall(function() rollSvc=require(RS.Source.Features.Roll.RollServiceClient) end)
+pcall(function() zoneSvc=require(RS.Source.Features.Zones.ZonesServiceClient) end)
 
 -- sync rolls state
 local ROLL_TYPES={"void","galaxy","golden","diamond"}
@@ -28,6 +29,17 @@ local rollProgress={void=math.huge,galaxy=math.huge,golden=math.huge,diamond=mat
 local clientPaused={void=false,galaxy=false,golden=false,diamond=false}
 local syncReady=false  -- true once all four have dropped under 75
 local syncStatusLbl=nil -- assigned after UI is built
+-- zone farmer
+local zfRunning=false local zfDone=false local zfResults={} local zfStatusText=""
+local zfPopupGui,zfPopupStatusLbl,zfPopupResultRows,zfPopupBestLbl
+local zfBtn
+local ZF_TDUR=180 local ZF_TWAIT=10 local ZF_ZONES=5
+local ZF_NAMES={} pcall(function() local z=require(RS.Source.Game.Items.Zones) for _,v in ipairs(z) do if v.id and v.name then ZF_NAMES[v.id]=v.name end end end)
+local function zfZoneName(id) return ZF_NAMES[id] or ("Zone "..tostring(id)) end
+local ZF_SFX={"K","M","B","T","Qa","Qi","Sx","Sp","Oc","No","Dc"}
+local function zfFmt(n) if n<1000 then return tostring(math.floor(n)) end local v,i=n,0 while v>=1000 and i<#ZF_SFX do v=v/1000 i=i+1 end return string.format("%.3f%s",v,ZF_SFX[i]) end
+local function zfTime(s) local m=math.floor(s/60) return string.format("%d:%02d",m,math.floor(s)%60) end
+local zfCreatePopup,zfUpdatePopupResults,zfRunTest
 
 local S={gun=false,roll=false,collect=false,tele=false,black=false,syncrolls=false}
 local rfs={}
@@ -162,6 +174,7 @@ local _ssl=Instance.new("TextLabel") _ssl.Size=UDim2.new(1,-10,0,12) _ssl.Positi
 syncStatusLbl=_ssl yC=yC+14
 local savePosBtn=Instance.new("TextButton") savePosBtn.Size=UDim2.new(1,-10,0,24) savePosBtn.Position=UDim2.new(0,5,0,yC) savePosBtn.BackgroundColor3=Color3.fromRGB(35,55,80) savePosBtn.TextColor3=Color3.fromRGB(120,180,255) savePosBtn.Text="Save Position" savePosBtn.TextSize=12 savePosBtn.Font=Enum.Font.Gotham savePosBtn.BorderSizePixel=0 savePosBtn.Parent=ctrlFrame Instance.new("UICorner",savePosBtn).CornerRadius=UDim.new(0,4) yC=yC+28
 local fpsBtn=Instance.new("TextButton") fpsBtn.Size=UDim2.new(1,-10,0,24) fpsBtn.Position=UDim2.new(0,5,0,yC) fpsBtn.BackgroundColor3=Color3.fromRGB(50,35,15) fpsBtn.TextColor3=Color3.fromRGB(255,180,60) fpsBtn.Text="FPS Boost" fpsBtn.TextSize=12 fpsBtn.Font=Enum.Font.Gotham fpsBtn.BorderSizePixel=0 fpsBtn.Parent=ctrlFrame Instance.new("UICorner",fpsBtn).CornerRadius=UDim.new(0,4) yC=yC+28
+zfBtn=Instance.new("TextButton") zfBtn.Size=UDim2.new(1,-10,0,24) zfBtn.Position=UDim2.new(0,5,0,yC) zfBtn.BackgroundColor3=Color3.fromRGB(35,40,70) zfBtn.TextColor3=Color3.fromRGB(160,180,255) zfBtn.Text="Zone Farmer: Start" zfBtn.TextSize=12 zfBtn.Font=Enum.Font.Gotham zfBtn.BorderSizePixel=0 zfBtn.Parent=ctrlFrame Instance.new("UICorner",zfBtn).CornerRadius=UDim.new(0,4) yC=yC+28
 ctrlFrame.Size=UDim2.new(1,0,0,yC+4)
 
 -- stats frame (tab 2)
@@ -580,4 +593,169 @@ task.spawn(function()
     end
 end)
 
+-- zone farmer logic
+local function zfSetStatus(txt)
+    zfStatusText=txt
+    if zfPopupStatusLbl and zfPopupStatusLbl.Parent then zfPopupStatusLbl.Text=txt end
+end
 
+local function zfRefreshBtn()
+    if not zfBtn or not zfBtn.Parent then return end
+    if zfRunning then
+        zfBtn.Text="Zone Farmer: Stop" zfBtn.BackgroundColor3=Color3.fromRGB(90,35,35) zfBtn.TextColor3=Color3.fromRGB(230,100,100)
+    elseif zfDone then
+        zfBtn.Text="Zone Farmer: Done" zfBtn.BackgroundColor3=Color3.fromRGB(25,25,40) zfBtn.TextColor3=Color3.fromRGB(110,110,140)
+    else
+        zfBtn.Text="Zone Farmer: Start" zfBtn.BackgroundColor3=Color3.fromRGB(35,40,70) zfBtn.TextColor3=Color3.fromRGB(160,180,255)
+    end
+end
+
+zfCreatePopup=function()
+    if zfPopupGui and zfPopupGui.Parent then return end
+    local PW=280
+    zfPopupGui=Instance.new("ScreenGui") zfPopupGui.ResetOnSpawn=false zfPopupGui.Name="ZoneFarmerPopup" zfPopupGui.IgnoreGuiInset=true
+    pcall(function() zfPopupGui.Parent=gethui() end)
+    if not zfPopupGui.Parent then zfPopupGui.Parent=game:GetService("CoreGui") end
+
+    local panel=Instance.new("Frame",zfPopupGui) panel.BackgroundColor3=Color3.fromRGB(22,8,40) panel.BorderSizePixel=0
+    Instance.new("UICorner",panel).CornerRadius=UDim.new(0,8)
+    local ps=Instance.new("UIStroke",panel) ps.Color=Color3.fromRGB(75,22,115) ps.Thickness=1.5 ps.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
+
+    local titleBar=Instance.new("Frame",panel) titleBar.Size=UDim2.new(1,0,0,28) titleBar.BackgroundColor3=Color3.fromRGB(32,10,58) titleBar.BorderSizePixel=0
+    Instance.new("UICorner",titleBar).CornerRadius=UDim.new(0,8)
+    local tl=Instance.new("TextLabel",titleBar) tl.Size=UDim2.new(1,-36,1,0) tl.Position=UDim2.new(0,10,0,0) tl.BackgroundTransparency=1 tl.TextColor3=Color3.new(1,1,1) tl.Text="Zone Farmer" tl.TextSize=13 tl.Font=Enum.Font.GothamBold tl.TextXAlignment=Enum.TextXAlignment.Left
+    local xBtn=Instance.new("TextButton",titleBar) xBtn.Size=UDim2.new(0,24,0,20) xBtn.Position=UDim2.new(1,-28,0,4) xBtn.BackgroundColor3=Color3.fromRGB(140,18,35) xBtn.TextColor3=Color3.new(1,1,1) xBtn.Text="X" xBtn.TextSize=12 xBtn.Font=Enum.Font.GothamBold xBtn.BorderSizePixel=0
+    Instance.new("UICorner",xBtn).CornerRadius=UDim.new(0,4)
+    xBtn.MouseButton1Click:Connect(function()
+        if zfPopupGui then zfPopupGui:Destroy() zfPopupGui=nil zfPopupStatusLbl=nil zfPopupResultRows=nil zfPopupBestLbl=nil end
+    end)
+
+    local drag,ds,dp=false,nil,nil
+    titleBar.InputBegan:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=true ds=UIS:GetMouseLocation() dp=panel.AbsolutePosition end
+    end)
+    UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end end)
+    UIS.InputChanged:Connect(function(i)
+        if not drag or i.UserInputType~=Enum.UserInputType.MouseMovement then return end
+        local cur=UIS:GetMouseLocation()
+        panel.Position=UDim2.new(0,dp.X+(cur.X-ds.X),0,dp.Y+(cur.Y-ds.Y))
+    end)
+
+    local y=28
+    local function mkDiv() local d=Instance.new("Frame",panel) d.Size=UDim2.new(1,-12,0,1) d.Position=UDim2.new(0,6,0,y) d.BackgroundColor3=Color3.fromRGB(60,18,95) d.BorderSizePixel=0 y=y+1 end
+    mkDiv() y=y+4
+    zfPopupStatusLbl=Instance.new("TextLabel",panel) zfPopupStatusLbl.Size=UDim2.new(1,-16,0,44) zfPopupStatusLbl.Position=UDim2.new(0,8,0,y) zfPopupStatusLbl.BackgroundTransparency=1 zfPopupStatusLbl.TextColor3=Color3.fromRGB(210,185,255) zfPopupStatusLbl.Text=zfStatusText~="" and zfStatusText or "Starting..." zfPopupStatusLbl.TextSize=11 zfPopupStatusLbl.Font=Enum.Font.Gotham zfPopupStatusLbl.TextXAlignment=Enum.TextXAlignment.Left zfPopupStatusLbl.TextWrapped=true
+    y=y+48
+
+    mkDiv()
+    local prf=Instance.new("Frame",panel) prf.Position=UDim2.new(0,0,0,y) prf.BackgroundTransparency=1 prf.BorderSizePixel=0
+
+    local LCOL,RCOL=PW-130,130
+    local function mkCell(parent,txt,xOff,w,isHdr)
+        local l=Instance.new("TextLabel",parent) l.Size=UDim2.new(0,w,1,0) l.Position=UDim2.new(0,xOff,0,0) l.BackgroundTransparency=1 l.TextColor3=isHdr and Color3.fromRGB(120,90,160) or Color3.fromRGB(200,200,200) l.Text=txt l.TextSize=isHdr and 10 or 11 l.Font=isHdr and Enum.Font.GothamBold or Enum.Font.Gotham l.TextXAlignment=Enum.TextXAlignment.Center return l
+    end
+    local function mkColDiv(parent) local d=Instance.new("Frame",parent) d.Size=UDim2.new(0,1,1,0) d.Position=UDim2.new(0,LCOL,0,0) d.BackgroundColor3=Color3.fromRGB(60,18,95) d.BorderSizePixel=0 end
+    local rHdr=Instance.new("Frame",prf) rHdr.Size=UDim2.new(1,0,0,22) rHdr.BackgroundColor3=Color3.fromRGB(32,10,58) rHdr.BorderSizePixel=0
+    mkCell(rHdr,"ZONE",0,LCOL,true) mkCell(rHdr,"GOOP/HR",LCOL,RCOL,true) mkColDiv(rHdr)
+    local ry=22
+    zfPopupResultRows={}
+    for i=1,ZF_ZONES do
+        local row=Instance.new("Frame",prf) row.Size=UDim2.new(1,0,0,24) row.Position=UDim2.new(0,0,0,ry) row.BackgroundColor3=(i%2==1) and Color3.fromRGB(28,10,50) or Color3.fromRGB(22,8,40) row.BorderSizePixel=0
+        local nLbl=mkCell(row,"--",0,LCOL,false) local vLbl=mkCell(row,"--",LCOL,RCOL,false) mkColDiv(row)
+        zfPopupResultRows[i]={name=nLbl,val=vLbl}
+        ry=ry+24
+    end
+    local bestRow=Instance.new("Frame",prf) bestRow.Size=UDim2.new(1,0,0,28) bestRow.Position=UDim2.new(0,0,0,ry) bestRow.BackgroundColor3=Color3.fromRGB(15,35,15) bestRow.BorderSizePixel=0
+    zfPopupBestLbl=Instance.new("TextLabel",bestRow) zfPopupBestLbl.Size=UDim2.new(1,-10,1,0) zfPopupBestLbl.Position=UDim2.new(0,5,0,0) zfPopupBestLbl.BackgroundTransparency=1 zfPopupBestLbl.TextColor3=Color3.fromRGB(80,230,80) zfPopupBestLbl.Text="Best: --" zfPopupBestLbl.TextSize=12 zfPopupBestLbl.Font=Enum.Font.GothamBold zfPopupBestLbl.TextXAlignment=Enum.TextXAlignment.Center
+    ry=ry+28
+    prf.Size=UDim2.new(1,0,0,ry) prf.Visible=true
+    panel.Size=UDim2.new(0,PW,0,y+4+ry)
+    panel.Position=UDim2.new(0.5,-PW/2,0,60)
+end
+
+zfUpdatePopupResults=function()
+    if not zfPopupResultRows then return end
+    for i,r in ipairs(zfResults) do
+        if zfPopupResultRows[i] then
+            zfPopupResultRows[i].name.Text=r.name zfPopupResultRows[i].val.Text=zfFmt(r.goopPerHr)
+            local c=i==1 and Color3.fromRGB(80,230,80) or Color3.fromRGB(200,200,200)
+            zfPopupResultRows[i].name.TextColor3=c zfPopupResultRows[i].val.TextColor3=c
+        end
+    end
+    for i=#zfResults+1,ZF_ZONES do
+        if zfPopupResultRows[i] then zfPopupResultRows[i].name.Text="" zfPopupResultRows[i].val.Text="" end
+    end
+    if zfPopupBestLbl and zfResults[1] then
+        zfPopupBestLbl.Text="Best: "..zfResults[1].name.." ("..zfFmt(zfResults[1].goopPerHr).."/hr)"
+    end
+end
+
+zfRunTest=function()
+    zfRunning=true zfDone=false zfResults={} zfRefreshBtn()
+    zfCreatePopup()
+
+    local maxZone=1 pcall(function() maxZone=zoneSvc:getMaxZone() end)
+    local count=math.min(ZF_ZONES,maxZone)
+    local zoneIds={} for i=maxZone-count+1,maxZone do table.insert(zoneIds,i) end
+
+    for idx,zid in ipairs(zoneIds) do
+        if not zfRunning then break end
+        local name=zfZoneName(zid)
+        zfSetStatus(string.format("[%d/%d] Teleporting to %s...",idx,count,name))
+        pcall(function() zoneSvc:teleportToZone(zid) end)
+        for t=ZF_TWAIT,1,-1 do
+            if not zfRunning then break end
+            zfSetStatus(string.format("[%d/%d] Loading %s... %ds",idx,count,name,t))
+            task.wait(1)
+        end
+        if not zfRunning then break end
+
+        local baseGoop=goopTotal
+        if zfPopupResultRows and zfPopupResultRows[idx] then
+            zfPopupResultRows[idx].name.Text=name zfPopupResultRows[idx].val.Text="—"
+            zfPopupResultRows[idx].name.TextColor3=Color3.fromRGB(180,160,255)
+            zfPopupResultRows[idx].val.TextColor3=Color3.fromRGB(180,160,255)
+        end
+        for t=ZF_TDUR,1,-1 do
+            if not zfRunning then break end
+            local el=ZF_TDUR-t+1
+            local liveRate=el>0 and ((goopTotal-baseGoop)/el)*3600 or 0
+            zfSetStatus(string.format("[%d/%d] Farming %s — %s left",idx,count,name,zfTime(t)))
+            if zfPopupResultRows and zfPopupResultRows[idx] then
+                zfPopupResultRows[idx].val.Text=zfFmt(liveRate)
+            end
+            task.wait(1)
+        end
+        if not zfRunning then break end
+
+        local goopPerHr=((goopTotal-baseGoop)/ZF_TDUR)*3600
+        table.insert(zfResults,{zoneId=zid,name=name,goopPerHr=goopPerHr})
+        if zfPopupResultRows and zfPopupResultRows[idx] then
+            zfPopupResultRows[idx].name.TextColor3=Color3.fromRGB(200,200,200)
+            zfPopupResultRows[idx].val.TextColor3=Color3.fromRGB(200,200,200)
+            zfPopupResultRows[idx].val.Text=zfFmt(goopPerHr)
+        end
+    end
+
+    if not zfRunning then zfSetStatus("Test stopped.") zfRefreshBtn() return end
+
+    table.sort(zfResults,function(a,b) return a.goopPerHr>b.goopPerHr end)
+    local best=zfResults[1]
+    if best then
+        zfSetStatus("Teleporting to best zone: "..best.name)
+        pcall(function() zoneSvc:teleportToZone(best.zoneId) end)
+        task.wait(2)
+        zfSetStatus("Done! Farming "..best.name)
+    end
+    zfUpdatePopupResults()
+    zfRunning=false zfDone=true
+    zfRefreshBtn()
+end
+
+zfBtn.MouseButton1Click:Connect(function()
+    if zfRunning then
+        zfRunning=false zfRefreshBtn()
+    elseif not zfDone then
+        task.spawn(zfRunTest)
+    end
+end)
