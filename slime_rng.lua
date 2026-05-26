@@ -17,14 +17,16 @@ task.spawn(function()
     end
 end)
 
-local hitRE,gunRF,shotCount=nil,nil,0
-local dataRE=nil -- DataService RemoteEvent (found async below)
+local goopSvc,gameplaySvc,rollSvc
+pcall(function() goopSvc=require(RS.Source.Features.GoopGun.GoopGunServiceClient) end)
+pcall(function() gameplaySvc=require(RS.Source.Features.Gameplay.GameplayServiceClient) end)
+pcall(function() rollSvc=require(RS.Source.Features.Roll.RollServiceClient) end)
 
 -- sync rolls state
 local ROLL_TYPES={"void","galaxy","golden","diamond"}
-local rollProgress={void={r=math.huge},galaxy={r=math.huge},golden={r=math.huge},diamond={r=math.huge}}
+local rollProgress={void=math.huge,galaxy=math.huge,golden=math.huge,diamond=math.huge}
 local clientPaused={void=false,galaxy=false,golden=false,diamond=false}
-local syncReady=false  -- true once all four have dropped under 100
+local syncReady=false  -- true once all four have dropped under 75
 local syncStatusLbl=nil -- assigned after UI is built
 
 local S={gun=false,roll=false,collect=false,tele=false,black=false,syncrolls=false}
@@ -89,61 +91,6 @@ local function loadUiPos()
     if x then pan.Position=UDim2.new(0,tonumber(x),0,tonumber(y)) end
 end
 
-task.spawn(function()
-    task.wait(1)
-    local function scan()
-        local bestN=-1
-        for _,v in ipairs(RS:GetDescendants()) do
-            if v:IsA("RemoteEvent") then
-                local n=v.Parent and tonumber(v.Parent.Name:match("^Gameplay(%d+)$"))
-                if n and n>bestN then hitRE=v bestN=n end
-            end
-            if v:IsA("RemoteFunction") and v.Parent and v.Parent.Name=="SlimeGunService" then
-                gunRF=v
-            end
-        end
-    end
-    -- scan until both found, then every 30s to handle server changes
-    while not (hitRE and gunRF) do scan() task.wait(3) end
-    while true do task.wait(30) scan() end
-end)
-
-local eids={}
-local GUN_RANGE=500
-task.spawn(function()
-    while true do
-        local char=PL.Character
-        local hrp=char and char:FindFirstChild("HumanoidRootPart")
-        local hrpPos=hrp and hrp.Position
-        local candidates={}
-        for _,v in ipairs(workspace:GetChildren()) do
-            if v.Name:match("^Gameplay%d+$") then
-                local ef=v:FindFirstChild("Enemies")
-                if ef then
-                    for _,e in ipairs(ef:GetChildren()) do
-                        local id=tonumber(e.Name)
-                        if id then
-                            local ep=e.PrimaryPart or e:FindFirstChildOfClass("BasePart")
-                            local dist=hrpPos and ep and (ep.Position-hrpPos).Magnitude or 0
-                            if not hrpPos or not ep or dist<=GUN_RANGE then
-                                local hum=e:FindFirstChildOfClass("Humanoid")
-                                local hp=hum and hum.Health or math.huge
-                                candidates[#candidates+1]={id=id,hp=hp,dist=dist}
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        table.sort(candidates,function(a,b)
-            if a.hp~=b.hp then return a.hp<b.hp end
-            return a.dist<b.dist
-        end)
-        local t={}
-        for _,c in ipairs(candidates) do t[#t+1]=c.id end
-        eids=t task.wait(0.5)
-    end
-end)
 
 
 local _iconUrl=""
@@ -202,12 +149,10 @@ T("Sync Rolls","syncrolls",function(on)
         syncReady=false
         for _,rt in ipairs(ROLL_TYPES) do
             if clientPaused[rt] then
-                if dataRE then pcall(function()
-                    -- VERIFY: update this call name if it doesn't work
-                    dataRE:FireServer("pauseSpecialRoll",rt,false)
-                end) end
+                if rollSvc then pcall(function() rollSvc:setSpecialRollPaused(rt,false) end) end
                 clientPaused[rt]=false
             end
+            rollProgress[rt]=math.huge
         end
         if syncStatusLbl then syncStatusLbl.Visible=false end
     end
@@ -385,66 +330,66 @@ end)
 local frameCount=0
 RunService.Heartbeat:Connect(function() frameCount=frameCount+1 end)
 
--- sync rolls: pause each special roll at 1 remaining, fire all simultaneously
+-- sync rolls: pause each special roll at ≤1 remaining, fire all simultaneously
 local function syncPause(rt,sp)
-    if not dataRE then return end
-    -- VERIFY: capture this call on Synapse/Fluxus by clicking the in-game pause button
-    -- Common alternatives: "setSpecialRollPaused", "toggleSpecialRollPause", "updateSpecialRoll"
-    pcall(function() dataRE:FireServer("pauseSpecialRoll",rt,sp) end)
+    if not rollSvc then return end
+    local ok=pcall(function() rollSvc:setSpecialRollPaused(rt,sp) end)
+    if not ok then pcall(function() rollSvc.networker:fetch("setSpecialRollPaused",rt,sp) end) end
 end
 local function handleSyncRolls()
     if not S.syncrolls then return end
-    -- Phase 1: wait until all four are under 100
+    -- Phase 1: wait until all four are under 75
     if not syncReady then
         for _,rt in ipairs(ROLL_TYPES) do
-            if rollProgress[rt].r>100 then return end
+            if rollProgress[rt]>=75 then return end
         end
         syncReady=true
     end
     -- Phase 2: pause each as it hits ≤1
     for _,rt in ipairs(ROLL_TYPES) do
-        if rollProgress[rt].r<=1 and not clientPaused[rt] then
+        if rollProgress[rt]<=1 and not clientPaused[rt] then
             syncPause(rt,true) clientPaused[rt]=true
         end
     end
-    -- Phase 3: all four paused at ≤1 → fire simultaneously
+    -- Phase 3: all four paused at ≤1 → release simultaneously
     local allReady=true
     for _,rt in ipairs(ROLL_TYPES) do
-        if not clientPaused[rt] or rollProgress[rt].r>1 then allReady=false break end
+        if not clientPaused[rt] or rollProgress[rt]>1 then allReady=false break end
     end
     if allReady then
-        for _,rt in ipairs(ROLL_TYPES) do syncPause(rt,false) clientPaused[rt]=false end
+        for _,rt in ipairs(ROLL_TYPES) do syncPause(rt,false) clientPaused[rt]=false rollProgress[rt]=math.huge end
         syncReady=false
     end
     -- update status label
     if syncStatusLbl then
-        local r=rollProgress
         local function f(v) return v>=math.huge and "--" or tostring(v) end
-        syncStatusLbl.Text=string.format("G:%-4s D:%-4s V:%-4s X:%-4s",f(r.golden.r),f(r.diamond.r),f(r.void.r),f(r.galaxy.r))
+        syncStatusLbl.Text=string.format("G:%-4s D:%-4s V:%-4s X:%-4s",f(rollProgress.golden),f(rollProgress.diamond),f(rollProgress.void),f(rollProgress.galaxy))
         syncStatusLbl.TextColor3=syncReady and Color3.fromRGB(80,180,255) or Color3.fromRGB(200,160,40)
     end
 end
-task.spawn(function()
-    for _=1,30 do
-        local ds=RS:FindFirstChild("DataService")
-        if ds then
-            local re=ds:FindFirstChildOfClass("RemoteEvent")
-            if re then
-                dataRE=re
-                re.OnClientEvent:Connect(function(_,evName,data)
-                    if evName=="specialRollProgression" and type(data)=="table" then
-                        for _,rt in ipairs(ROLL_TYPES) do
-                            local d=data[rt]
-                            if d then rollProgress[rt].r=d.rollsUntilNext or math.huge end
-                        end
-                        handleSyncRolls()
-                    end
-                end)
-                return
-            end
+local _hookedRollREs={}
+local function hookRollRE(re)
+    if _hookedRollREs[re] then return end
+    _hookedRollREs[re]=true
+    re.OnClientEvent:Connect(function(a1,a2,a3)
+        local evName,data
+        if type(a1)=="string" then evName,data=a1,a2
+        elseif type(a2)=="string" then evName,data=a2,a3 end
+        if evName~="specialRollProgression" or type(data)~="table" then return end
+        for _,rt in ipairs(ROLL_TYPES) do
+            local d=data[rt]
+            if d then rollProgress[rt]=d.rollsUntilNext or math.huge end
         end
-        task.wait(0.5)
+        handleSyncRolls()
+    end)
+end
+task.spawn(function()
+    for _,d in ipairs(RS:GetDescendants()) do
+        if d:IsA("RemoteEvent") then hookRollRE(d) end
     end
+    RS.DescendantAdded:Connect(function(d)
+        if d:IsA("RemoteEvent") then hookRollRE(d) end
+    end)
 end)
 
 task.spawn(function()
@@ -477,19 +422,48 @@ task.spawn(function()
     end
 end)
 
--- gun: always target lowest-hp enemy, fallback closest; list pre-sorted by enemy scan
-local gunTarget=nil
+-- gun: fire up to 3 nearest alive enemies simultaneously via GoopGunServiceClient
+local _gunTargets={}
 task.spawn(function()
     while true do
-        if hitRE and S.gun then
-            if #eids>0 then gunTarget=eids[1] end
-            if gunTarget then
-                if gunRF then pcall(function()gunRF:InvokeServer("tryFireSlimeGun",gunTarget)end) end
-                shotCount=shotCount+1 pcall(function()hitRE:FireServer("confirmHit",shotCount,gunTarget)end)
-                shotCount=shotCount+1 pcall(function()hitRE:FireServer("confirmHit",shotCount,gunTarget)end)
-            end
-        end
         task.wait(0.05)
+        if not S.gun or not goopSvc or not gameplaySvc then continue end
+        pcall(function()
+            local char=PL.Character
+            local hrp=char and char:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+            local origin=hrp.Position
+            local gameplay=gameplaySvc.gameplay
+            if not gameplay or not gameplay.enemies then return end
+            -- cull dead targets
+            for eid in pairs(_gunTargets) do
+                local e=gameplay.enemies[eid]
+                if not (e and e.model and e.model.Parent and (e.health==nil or e.health>0)) then
+                    _gunTargets[eid]=nil
+                end
+            end
+            -- fill slots up to 3
+            local n=0 for _ in pairs(_gunTargets) do n=n+1 end
+            if n<3 then
+                local cands={}
+                for eid,e in pairs(gameplay.enemies) do
+                    if not _gunTargets[eid] and e and e.model and e.model.Parent and (e.health==nil or e.health>0) then
+                        local ok,epos=pcall(function() return e.model:GetPivot().Position end)
+                        if ok then
+                            local d=(epos-origin).Magnitude
+                            if d<=500 then cands[#cands+1]={id=eid,d=d} end
+                        end
+                    end
+                end
+                table.sort(cands,function(a,b) return a.d<b.d end)
+                for i=1,math.min(3-n,#cands) do _gunTargets[cands[i].id]=true end
+            end
+            -- fire all targets
+            for eid in pairs(_gunTargets) do
+                local id=eid
+                task.spawn(function() pcall(function() goopSvc.networker:fetch("tryFireSlimeGun",id) end) end)
+            end
+        end)
     end
 end)
 
