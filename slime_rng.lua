@@ -8,7 +8,6 @@ local UIS         = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
 local CoreGui     = game:GetService("CoreGui")
 local PL = Players.LocalPlayer
-while not PL do task.wait() PL = Players.LocalPlayer end
 local _t = 0
 while not RS:FindFirstChild("Source") and _t < 7 do task.wait(1) _t = _t + 1 end
 if not RS:FindFirstChild("Source") then warn("[SlimeRNG] RS.Source never appeared, loading anyway") end
@@ -56,7 +55,6 @@ pcall(function()
         elseif connection["Disconnect"] then connection["Disconnect"](connection) end
     end
 end)
-_G.AntiAFK = { isDisabled = function() return true end }
 
 -- ─── Save Position ────────────────────────────────────────────────────────────
 do
@@ -402,6 +400,21 @@ do
     }
 end
 
+-- ─── Utilities ────────────────────────────────────────────────────────────────
+local SFX = {"K","M","B","T","Qa","Qi","Sx","Sp","Oc","No","Dc"}
+local function fmt(n)
+    if n < 1000 then return tostring(math.floor(n)) end
+    local v, i = n, 0
+    while v >= 1000 and i < #SFX do v = v/1000 i = i+1 end
+    return string.format("%.3f%s", v, SFX[i])
+end
+local function fmtTime(s)
+    local h = math.floor(s/3600)
+    local m = math.floor(s/60) % 60
+    local sc = math.floor(s) % 60
+    return h > 0 and string.format("%d:%02d:%02d",h,m,sc) or string.format("%d:%02d",m,sc)
+end
+
 -- ─── Zone Farmer ──────────────────────────────────────────────────────────────
 do
     local TEST_DURATION = 180
@@ -416,17 +429,6 @@ do
         end
     end)
     local function zoneName(id) return ZONE_NAMES[id] or ("Zone "..id) end
-
-    local SFX_ZF = {"K","M","B","T","Qa","Qi","Sx","Sp","Oc","No","Dc"}
-    local function fmtZF(n)
-        if n < 1000 then return tostring(math.floor(n)) end
-        local v, i = n, 0
-        while v >= 1000 and i < #SFX_ZF do v = v/1000 i = i+1 end
-        return string.format("%.3f%s", v, SFX_ZF[i])
-    end
-    local function fmtTimeZF(s)
-        return string.format("%d:%02d", math.floor(s/60), math.floor(s)%60)
-    end
 
     local goopCount = 0
     local hookedZFREs = {}
@@ -492,9 +494,9 @@ do
                 if not running then break end
                 local ze = TEST_DURATION - t + 1
                 local liveRate = ze > 0 and (goopCount/ze)*3600 or 0
-                setStatus(string.format("[%d/%d] Farming %s — %s left", idx, count, name, fmtTimeZF(t)))
+                setStatus(string.format("[%d/%d] Farming %s — %s left", idx, count, name, fmtTime(t)))
                 if popupResultRows and popupResultRows[idx] then
-                    popupResultRows[idx].val.Text = fmtZF(liveRate)
+                    popupResultRows[idx].val.Text = fmt(liveRate)
                 end
                 task.wait(1)
             end
@@ -504,7 +506,7 @@ do
             if popupResultRows and popupResultRows[idx] then
                 popupResultRows[idx].name.TextColor3 = Color3.fromRGB(200,200,200)
                 popupResultRows[idx].val.TextColor3  = Color3.fromRGB(200,200,200)
-                popupResultRows[idx].val.Text = fmtZF(goopPerHr)
+                popupResultRows[idx].val.Text = fmt(goopPerHr)
             end
         end
 
@@ -679,7 +681,7 @@ do
         for i, r in ipairs(results) do
             if popupResultRows[i] then
                 popupResultRows[i].name.Text = r.name
-                popupResultRows[i].val.Text  = fmtZF(r.goopPerHr)
+                popupResultRows[i].val.Text  = fmt(r.goopPerHr)
                 local c = i==1 and Color3.fromRGB(80,230,80) or Color3.fromRGB(200,200,200)
                 popupResultRows[i].name.TextColor3 = c
                 popupResultRows[i].val.TextColor3  = c
@@ -692,7 +694,7 @@ do
             end
         end
         if popupBestLbl and results[1] then
-            popupBestLbl.Text = "Best: "..results[1].name.." ("..fmtZF(results[1].goopPerHr).."/hr)"
+            popupBestLbl.Text = "Best: "..results[1].name.." ("..fmt(results[1].goopPerHr).."/hr)"
         end
         popupResultsFrame.Visible = true
     end
@@ -1014,21 +1016,6 @@ for _, def in ipairs(EXPLOIT_DEFS) do
     end
 end
 
--- ─── Utilities ────────────────────────────────────────────────────────────────
-local SFX = {"K","M","B","T","Qa","Qi","Sx","Sp","Oc","No","Dc"}
-local function fmt(n)
-    if n < 1000 then return tostring(math.floor(n)) end
-    local v, i = n, 0
-    while v >= 1000 and i < #SFX do v = v/1000 i = i+1 end
-    return string.format("%.3f%s", v, SFX[i])
-end
-local function fmtTime(s)
-    local h = math.floor(s/3600)
-    local m = math.floor(s/60) % 60
-    local sc = math.floor(s) % 60
-    return h > 0 and string.format("%d:%02d:%02d",h,m,sc) or string.format("%d:%02d",m,sc)
-end
-
 -- ─── Layout constants ─────────────────────────────────────────────────────────
 local W        = 299
 local LBL_W    = 44
@@ -1188,7 +1175,7 @@ titleLbl.Position = UDim2.new(0, 12, 0, 0)
 titleLbl.BackgroundTransparency = 1
 titleLbl.TextColor3 = Color3.new(1, 1, 1)
 titleLbl.TextStrokeTransparency = 1
-titleLbl.Text     = "Lxcifer Scripts"
+titleLbl.Text     = "Devilish Scripts"
 titleLbl.TextSize = 13
 titleLbl.Font     = Enum.Font.GothamBold
 titleLbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -1717,7 +1704,6 @@ task.spawn(function()
     while g.Parent do
         task.wait(1)
         for _, r in ipairs(refreshFns) do r() end
-        applyFruitFilter()
 
         local zf = _G.ZoneFarmer
         if zf then
