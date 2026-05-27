@@ -707,44 +707,60 @@ do
     }
 end
 
--- ─── Auto Buy Zone ────────────────────────────────────────────────────────────
-do
-    local active = false
-    local function setActive(val) active = val end
-    task.spawn(function()
-        while true do
-            if active then pcall(function() zoneSvc:purchaseZone() end) end
-            task.wait(0.5)
-        end
-    end)
-    _G.AutoBuyZone = {
-        enable   = function() setActive(true) end,
-        disable  = function() setActive(false) end,
-        toggle   = function(val) if val == nil then setActive(not active) else setActive(val) end end,
-        isActive = function() return active end,
-    }
-end
-
--- ─── Auto Teleport Zone ───────────────────────────────────────────────────────
+-- ─── Auto Zone (Buy + Teleport) ───────────────────────────────────────────────
 do
     local active  = false
     local lastMax = 0
+    local dataClient, zoneItems
+
+    task.spawn(function()
+        for _ = 1, 60 do
+            pcall(function()
+                if not dataClient then dataClient = require(RS.Packages.DataService).client end
+                if not zoneItems  then zoneItems  = RS.Source.Game.Items.Zones end
+            end)
+            if dataClient and zoneItems then break end
+            task.wait(0.5)
+        end
+    end)
+
+    local function canAfford(zoneId)
+        if not dataClient or not zoneItems then return true end
+        local ok, result = pcall(function()
+            local zoneFolder = zoneItems:FindFirstChild(tostring(zoneId))
+            if not zoneFolder then return true end
+            local costVal = zoneFolder:FindFirstChild("Cost") or zoneFolder:FindFirstChild("cost")
+            if not costVal then return true end
+            local currency = costVal.Value
+            local balance  = dataClient:get("coins") or dataClient:get("Coins") or 0
+            return balance >= currency
+        end)
+        return ok and result
+    end
+
     local function setActive(val)
         active = val
         if active then pcall(function() lastMax = zoneSvc:getMaxZone() end) end
     end
+
     task.spawn(function()
         while true do
             task.wait(2)
             if active then
                 pcall(function()
                     local max = zoneSvc:getMaxZone()
-                    if max > lastMax then lastMax = max zoneSvc:teleportToZone(max) end
+                    if max > lastMax then
+                        lastMax = max
+                        zoneSvc:teleportToZone(max)
+                    elseif canAfford(max + 1) then
+                        zoneSvc:purchaseZone()
+                    end
                 end)
             end
         end
     end)
-    _G.AutoTeleportZone = {
+
+    _G.AutoZone = {
         enable   = function() setActive(true) end,
         disable  = function() setActive(false) end,
         toggle   = function(val) if val == nil then setActive(not active) else setActive(val) end end,
@@ -965,8 +981,7 @@ local AC_DEF    = { label = "Auto Collect", key = "autoCollect", getApi = functi
 local TOGGLE_DEFS = {
     { label = "Auto Shoot",        key = "autoShoot",       getApi = function() return _G.AutoShoot end,        tip = "Focuses fire on the lowest HP enemy within 200 studs — switches when it dies" },
     { label = "Stack Rolls",       key = "stackRolls",      getApi = function() return _G.StackRolls end,       tip = "Pauses special rolls and syncs them to all fire at once" },
-    { label = "Auto Buy Zone",     key = "autoBuyZone",     getApi = function() return _G.AutoBuyZone end,      tip = "Automatically purchases zones as coins allow" },
-    { label = "Auto Tele Zone",    key = "autoTeleZone",    getApi = function() return _G.AutoTeleportZone end, tip = "Teleports to your new max zone when it unlocks" },
+    { label = "Auto Zone",         key = "autoZone",        getApi = function() return _G.AutoZone end,         tip = "Buys next zone when affordable, then teleports to it" },
     { label = "Auto Buy Upgrades", key = "autoBuyUpgrades", getApi = function() return _G.AutoBuyUpgrades end,  tip = "Buys every affordable upgrade automatically, following the dependency chain" },
 }
 local AR_DEF = { label = "Auto Return", key = "autoReturn", getApi = function() return _G.AutoReturn end, tip = "Teleports back to saved position when you wander too far" }
