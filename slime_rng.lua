@@ -1107,7 +1107,7 @@ bubble.Size = UDim2.new(0, 44, 0, 44)
 bubble.Position = UDim2.new(1, -57, 0, 64)
 bubble.BackgroundTransparency = 1
 bubble.BorderSizePixel = 0
-bubble.Image = pfpImage
+if type(pfpImage) == "string" and pfpImage ~= "" then bubble.Image = pfpImage end
 bubble.Visible = false
 Instance.new("UICorner", bubble).CornerRadius = UDim.new(0.5, 0)
 mkStroke(bubble, C_STROKE, 2, 0.15)
