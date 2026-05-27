@@ -711,52 +711,43 @@ end
 do
     local active  = false
     local lastMax = 0
-    local dataClient, zoneItems
-
-    task.spawn(function()
-        for _ = 1, 60 do
-            pcall(function()
-                if not dataClient then dataClient = require(RS.Packages.DataService).client end
-                if not zoneItems  then zoneItems  = RS.Source.Game.Items.Zones end
-            end)
-            if dataClient and zoneItems then break end
-            task.wait(0.5)
-        end
-    end)
-
-    local function canAfford(zoneId)
-        if not dataClient or not zoneItems then return true end
-        local ok, result = pcall(function()
-            local zoneFolder = zoneItems:FindFirstChild(tostring(zoneId))
-            if not zoneFolder then return true end
-            local costVal = zoneFolder:FindFirstChild("Cost") or zoneFolder:FindFirstChild("cost")
-            if not costVal then return true end
-            local currency = costVal.Value
-            local balance  = dataClient:get("coins") or dataClient:get("Coins") or 0
-            return balance >= currency
-        end)
-        return ok and result
-    end
+    local nextTry = 0  -- tick() timestamp; don't attempt a buy before this
 
     local function setActive(val)
         active = val
-        if active then pcall(function() lastMax = zoneSvc:getMaxZone() end) end
+        if active then
+            pcall(function() lastMax = zoneSvc:getMaxZone() end)
+            nextTry = 0
+        end
     end
 
     task.spawn(function()
         while true do
             task.wait(2)
-            if active then
-                pcall(function()
-                    local max = zoneSvc:getMaxZone()
-                    if max > lastMax then
-                        lastMax = max
-                        zoneSvc:teleportToZone(max)
-                    elseif canAfford(max + 1) then
-                        zoneSvc:purchaseZone()
+            if not active then continue end
+            pcall(function()
+                local max = zoneSvc:getMaxZone()
+                if max > lastMax then
+                    -- New zone unlocked — teleport and reset retry timer
+                    lastMax = max
+                    zoneSvc:teleportToZone(max)
+                    nextTry = 0
+                elseif tick() >= nextTry then
+                    -- Attempt a purchase, then verify it actually went through
+                    local before = zoneSvc:getMaxZone()
+                    zoneSvc:purchaseZone()
+                    task.wait(1)
+                    local after = zoneSvc:getMaxZone()
+                    if after > before then
+                        lastMax = after
+                        zoneSvc:teleportToZone(after)
+                        nextTry = 0
+                    else
+                        -- Purchase failed (unaffordable) — back off 30s
+                        nextTry = tick() + 30
                     end
-                end)
-            end
+                end
+            end)
         end
     end)
 
