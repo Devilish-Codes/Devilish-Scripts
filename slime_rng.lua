@@ -1100,7 +1100,7 @@ end
 local pfpImage = ""
 if getcustomasset then
     local ok, url = pcall(getcustomasset, "pfp_bg7_p03_scarlet.png")
-    if ok then pfpImage = url end
+    if ok and url then pfpImage = url end
 end
 local bubble = Instance.new("ImageButton", g)
 bubble.Size = UDim2.new(0, 44, 0, 44)
