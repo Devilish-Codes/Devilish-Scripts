@@ -60,6 +60,7 @@ end)
 do
     local savedPos = nil
     local POS_FILE = "slime_rng_pos.txt"
+    -- Persist saved position to file, with CoreGui StringValue as fallback
     local function savePosFile()
         if not savedPos then return end
         local str = savedPos.X..","..savedPos.Y..","..savedPos.Z
@@ -70,6 +71,7 @@ do
             store.Value = str
         end
     end
+    -- Load saved position from file or CoreGui fallback; populates savedPos
     local function loadPosFile()
         local ok, d = pcall(readfile, POS_FILE)
         if not ok or not d then
@@ -81,6 +83,7 @@ do
         if x then savedPos = Vector3.new(tonumber(x), tonumber(y), tonumber(z)) end
     end
     loadPosFile()
+    -- Capture the player's current HRP position (+1 stud up) and save it
     local function doSave()
         local char = PL.Character
         local hrp  = char and char:FindFirstChild("HumanoidRootPart")
@@ -101,6 +104,7 @@ end
 do
     local active = false
     local function setActive(val) active = val end
+    -- Pause rolling while StackRolls is releasing; otherwise roll as fast as the server allows
     task.spawn(function()
         while true do
             local sr = _G.StackRolls
@@ -126,6 +130,7 @@ end
 do
     local active = false
     local function setActive(val) active = val end
+    -- Roll at a fixed 1.4-second interval to simulate a natural roll pace
     task.spawn(function()
         while true do
             if active and rollRF then
@@ -158,12 +163,14 @@ do
             pcall(function()
                 local gp = gameplaySvc and gameplaySvc.gameplay
                 if not gp or not gp.enemies then return end
+                -- Validate existing target is still alive and in scene
                 if target then
                     local e = gp.enemies[target]
                     if not (e and e.model and e.model.Parent and (e.health == nil or e.health > 0)) then
                         target = nil
                     end
                 end
+                -- Select the lowest-HP enemy within MAX_RANGE studs
                 if not target then
                     local char = PL.Character
                     local hrp  = char and char:FindFirstChild("HumanoidRootPart")
@@ -184,6 +191,7 @@ do
                     end
                     target = bestId
                 end
+                -- Fire at the current target
                 if target then
                     pcall(function() goopSvc.networker:fetch("tryFireSlimeGun", target) end)
                 end
@@ -216,6 +224,7 @@ do
                     local uniqueId = item.Name
                     local obj     = lootSvc.lootById and lootSvc.lootById[uniqueId]
                     local lootId  = obj and obj.data and obj.data.lootId
+                    -- Skip fruits not in the active filter (empty filter = collect all fruits)
                     local isFruit = lootId and KNOWN_FRUITS[lootId]
                     local allowed = not isFruit or not next(fruitFilter) or fruitFilter[lootId]
                     if allowed then pcall(function() lootSvc:requestCollect(uniqueId) end) end
@@ -236,6 +245,7 @@ end
 -- ─── Auto Return ──────────────────────────────────────────────────────────────
 do
     local active = false
+    -- Read saved position from _G.SavePosition, file, or CoreGui fallback
     local function getSavedPos()
         if _G.SavePosition then return _G.SavePosition.getPosition() end
         local ok, d = pcall(readfile, "slime_rng_pos.txt")
@@ -248,6 +258,7 @@ do
         if x then return Vector3.new(tonumber(x), tonumber(y), tonumber(z)) end
     end
     local function setActive(val) active = val end
+    -- Teleport back to saved position when the player drifts more than 20 studs away
     task.spawn(function()
         while true do
             task.wait(1)
@@ -283,17 +294,20 @@ do
     local active     = false
     local releasedAt = 0
 
+    -- Pause or unpause a roll type via the roll service
     local function setPaused(rt, state)
         local ok = pcall(function() rollSvc:setSpecialRollPaused(rt, state) end)
         if not ok then pcall(function() rollSvc.networker:fetch("setSpecialRollPaused", rt, state) end) end
         paused[rt] = state
     end
+    -- Unpause all roll types and clear their progress counters
     local function reset()
         for _, rt in ipairs(ROLL_TYPES) do
             if paused[rt] then setPaused(rt, false) end
             progress[rt] = math.huge
         end
     end
+    -- Pause each roll type when it reaches ≤1 cycle left; release all together when all are ready
     local function handleProgression()
         if not active then return end
         if os.clock() - releasedAt < RELEASE_COOLDOWN then return end
@@ -317,6 +331,7 @@ do
             for _, rt in ipairs(ROLL_TYPES) do setPaused(rt, false) progress[rt] = math.huge end
         end
     end
+    -- Parse specialRollProgression events and update per-type progress counters
     local function onRollEvent(a1, a2, a3)
         local evName, data
         if type(a1) == "string" then evName, data = a1, a2
@@ -335,11 +350,13 @@ do
         handleProgression()
     end
     local hookedREs = {}
+    -- Hook a RemoteEvent once to forward all events to onRollEvent
     local function hookSRRE(re)
         if hookedREs[re] then return end
         hookedREs[re] = true
         re.OnClientEvent:Connect(onRollEvent)
     end
+    -- Hook all existing and future RemoteEvents in ReplicatedStorage
     task.spawn(function()
         for _, d in ipairs(RS:GetDescendants()) do
             if d:IsA("RemoteEvent") then hookSRRE(d) end
@@ -366,6 +383,7 @@ do
     local coinTotal, goopTotal = 0, 0
     local sessionStart = tick()
     local hookedREs  = {}
+    -- Accumulate goop and coin rewards received from GameplayN RemoteEvents
     local function hookSTRE(re)
         if hookedREs[re] then return end
         hookedREs[re] = true
@@ -377,6 +395,7 @@ do
             elseif a1 == "coinRewarded" then coinTotal = coinTotal + amt end
         end)
     end
+    -- Hook all existing and future Gameplay RemoteEvents
     task.spawn(function()
         for _, v in ipairs(RS:GetDescendants()) do
             if v:IsA("RemoteEvent") and v.Parent and v.Parent.Name:match("^Gameplay%d+$") then hookSTRE(v) end
@@ -421,6 +440,7 @@ do
     local ZONES_TO_TEST = 5
     local TELEPORT_WAIT = 10
 
+    -- Cache zone display names from the Zones module for use in status messages
     local ZONE_NAMES = {}
     pcall(function()
         local zones = require(RS.Source.Game.Items.Zones)
@@ -430,6 +450,7 @@ do
     end)
     local function zoneName(id) return ZONE_NAMES[id] or ("Zone "..id) end
 
+    -- Count goop earned during each benchmark by hooking Gameplay RemoteEvents
     local goopCount = 0
     local hookedREs = {}
     local function hookZFRE(re)
@@ -463,6 +484,7 @@ do
         if popupStatusLbl and popupStatusLbl.Parent then popupStatusLbl.Text = txt end
     end
 
+    -- Teleport to and benchmark each zone, then move to the best goop/hr zone
     runTest = function()
         running = true
         results = {}
@@ -524,6 +546,7 @@ do
         done = true
     end
 
+    -- Build the draggable floating benchmark results popup
     local PW = 280
     createPopup = function()
         if popupGui and popupGui.Parent then return end
@@ -676,6 +699,7 @@ do
         panel.Position = UDim2.new(0.5, -PW/2, 0, 60)
     end
 
+    -- Refresh popup result rows with final sorted data and highlight the best zone
     updatePopupResults = function()
         if not popupResultRows or not popupResultsFrame then return end
         for i, r in ipairs(results) do
@@ -740,6 +764,7 @@ do
         end
     end)
 
+    -- Buy the next zone when affordable; teleport to the current zone's baseplate
     task.spawn(function()
         while true do
             task.wait(1)
@@ -785,10 +810,12 @@ do
     end)
     local active = false
     local ORIGIN = "origin"
+    -- Return the player's current balance for the given currency key
     local function getBalance(currency)
         local ok, v = pcall(function() return dataClient:get(currency) end)
         return (ok and type(v) == "number") and v or 0
     end
+    -- Walk the upgrade tree and purchase every affordable, dependency-satisfied upgrade
     local function tryBuyAll()
         if not (upgSvc and upgSvc.networker and dataClient and upgradeTree) then return end
         local bought = true
@@ -832,6 +859,7 @@ do
     local walkSpeedActive = false
     local WALK_SPEED = 50
 
+    -- Slime Snap: teleport each slime 5 studs in front of its target enemy every frame
     RunService.Heartbeat:Connect(function()
         if not slimeSnapActive then return end
         local gp = gameplaySvc and gameplaySvc.gameplay
@@ -856,6 +884,7 @@ do
         end)
     end)
 
+    -- Enemy Pull: arrange all enemies in a square grid 10 studs ahead of the player
     RunService.Heartbeat:Connect(function()
         if not enemyPullActive then return end
         local gp = gameplaySvc and gameplaySvc.gameplay
@@ -899,6 +928,7 @@ do
     end)
 
     local slimeHpHooked = false
+    -- Hook setState on the SlimeClient metatable to redirect idle slimes to targeting while Enemy Pull is active
     local function hookSlimeSetState(gp)
         if not gp or slimeHpHooked then return end
         local _, anySl = next(gp.slimes)
@@ -926,6 +956,7 @@ do
         end
     end)
 
+    -- Apply or reset WalkSpeed on the local humanoid
     local function applyWalkSpeed(on)
         pcall(function()
             local char = PL.Character
@@ -934,6 +965,7 @@ do
             if hum then hum.WalkSpeed = on and WALK_SPEED or 16 end
         end)
     end
+    -- Re-apply WalkSpeed after each character respawn
     PL.CharacterAdded:Connect(function()
         if not walkSpeedActive then return end
         task.wait(0.5)
@@ -965,12 +997,14 @@ end
 
 -- ─── State persistence ────────────────────────────────────────────────────────
 local STATE_FILE = "slimeRNG_state.json"
+-- Read JSON state from disk; returns an empty table on any failure
 local function loadState()
     local ok, data = pcall(function()
         return HttpService:JSONDecode(readfile(STATE_FILE))
     end)
     return (ok and type(data) == "table") and data or {}
 end
+-- Write JSON state to disk; silently fails if writefile is unavailable
 local function saveState(s)
     pcall(function() writefile(STATE_FILE, HttpService:JSONEncode(s)) end)
 end
@@ -992,6 +1026,7 @@ local EXPLOIT_DEFS = {
     { label = "Walk Speed", key = "walkSpeed", getApi = function() return _G.WalkSpeed end, tip = "Sets WalkSpeed to 50 — re-applies on respawn" },
 }
 
+-- Restore toggle states from the last saved session
 local savedState = loadState()
 for _, def in ipairs(TOGGLE_DEFS) do
     if savedState[def.key] then
@@ -1359,6 +1394,7 @@ local function hLine(parent, y)
     mkGrad(d, C_DIV, Color3.fromRGB(140, 18, 50), 0)
 end
 
+-- Create a toggle button for the given feature definition; registers a refresh callback
 local function makeToggleBtn(parent, def, xPos, width, yPos)
     local btn = Instance.new("TextButton", parent)
     btn.Size = UDim2.new(0, width, 0, 28)
@@ -1372,6 +1408,7 @@ local function makeToggleBtn(parent, def, xPos, width, yPos)
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     local btnStroke = mkStroke(btn, C_BSTR_OFF, 1.5, 0.2)
 
+    -- Sync button color and label to the current ON/OFF state
     local function refresh()
         local api = def.getApi()
         local on  = api and api.isActive()
@@ -1405,6 +1442,7 @@ local function makeToggleBtn(parent, def, xPos, width, yPos)
     return btn
 end
 
+-- Fast Roll and Legit Roll side-by-side in one row
 do
     local b1 = makeToggleBtn(scrollFrame, ROLL_DEF, 6, HALF_W, cy)
     b1.TextSize = 11
@@ -1412,6 +1450,7 @@ do
     b2.TextSize = 11
     cy = cy + 32
 end
+-- Main feature toggle buttons (full width)
 for _, def in ipairs(TOGGLE_DEFS) do
     makeToggleBtn(scrollFrame, def, 6, W - 16, cy)
     cy = cy + 32
@@ -1419,6 +1458,7 @@ end
 
 hLine(scrollFrame, cy) cy = cy + 8
 
+-- Auto Return and Save Position side-by-side in one row
 makeToggleBtn(scrollFrame, AR_DEF, 6, HALF_W, cy)
 
 local savePosBtn = Instance.new("TextButton", scrollFrame)
@@ -1441,6 +1481,7 @@ cy = cy + 32
 
 hLine(scrollFrame, cy) cy = cy + 8
 
+-- Zone Farmer start/stop button (state updates in the update loop)
 local zfBtn = Instance.new("TextButton", scrollFrame)
 zfBtn.Size = UDim2.new(1, -16, 0, 28)
 zfBtn.Position = UDim2.new(0, 6, 0, cy)
@@ -1700,6 +1741,7 @@ tabExploits.MouseButton1Click:Connect(function() showTab("exploits") end)
 showTab("controls")
 
 -- ─── Update loop ──────────────────────────────────────────────────────────────
+-- Refresh all toggle button states, Zone Farmer button, and stats display every second
 task.spawn(function()
     while g.Parent do
         task.wait(1)
