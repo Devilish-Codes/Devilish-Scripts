@@ -725,29 +725,26 @@ do
         while true do
             task.wait(2)
             if not active then continue end
-            pcall(function()
-                local max = zoneSvc:getMaxZone()
-                if max > lastMax then
-                    -- New zone unlocked — teleport and reset retry timer
-                    lastMax = max
-                    zoneSvc:teleportToZone(max)
+            local max = 0
+            pcall(function() max = zoneSvc:getMaxZone() end)
+            if max > lastMax then
+                lastMax = max
+                pcall(function() zoneSvc:teleportToZone(max) end)
+                nextTry = 0
+            elseif tick() >= nextTry then
+                local before = max
+                pcall(function() zoneSvc:purchaseZone() end)
+                task.wait(1)
+                local after = before
+                pcall(function() after = zoneSvc:getMaxZone() end)
+                if after > before then
+                    lastMax = after
+                    pcall(function() zoneSvc:teleportToZone(after) end)
                     nextTry = 0
-                elseif tick() >= nextTry then
-                    -- Attempt a purchase, then verify it actually went through
-                    local before = zoneSvc:getMaxZone()
-                    zoneSvc:purchaseZone()
-                    task.wait(1)
-                    local after = zoneSvc:getMaxZone()
-                    if after > before then
-                        lastMax = after
-                        zoneSvc:teleportToZone(after)
-                        nextTry = 0
-                    else
-                        -- Purchase failed (unaffordable) — back off 30s
-                        nextTry = tick() + 30
-                    end
+                else
+                    nextTry = tick() + 30
                 end
-            end)
+            end
         end
     end)
 
