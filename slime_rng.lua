@@ -17,17 +17,20 @@ task.spawn(function()
     end
 end)
 
-local goopSvc,gameplaySvc,rollSvc,zoneSvc
+local goopSvc,gameplaySvc,rollSvc,zoneSvc,lootSvc
 pcall(function() goopSvc=require(RS.Source.Features.GoopGun.GoopGunServiceClient) end)
 pcall(function() gameplaySvc=require(RS.Source.Features.Gameplay.GameplayServiceClient) end)
 pcall(function() rollSvc=require(RS.Source.Features.Roll.RollServiceClient) end)
 pcall(function() zoneSvc=require(RS.Source.Features.Zones.ZonesServiceClient) end)
+pcall(function() lootSvc=require(RS.Source.Features.Loot.LootServiceClient) end)
 
 -- sync rolls state
 local ROLL_TYPES={"void","galaxy","golden","diamond"}
 local rollProgress={void=math.huge,galaxy=math.huge,golden=math.huge,diamond=math.huge}
 local clientPaused={void=false,galaxy=false,golden=false,diamond=false}
-local syncReady=false  -- true once all four have dropped under 75
+local cycleLen={golden=10,diamond=100,void=1000,galaxy=5000}
+local SYNC_COOLDOWN=4
+local syncReleasedAt=0
 local syncStatusLbl=nil -- assigned after UI is built
 -- zone farmer
 local zfRunning=false local zfDone=false local zfResults={} local zfStatusText=""
@@ -172,10 +175,9 @@ T("Sync Rolls","syncrolls",function(on)
     if on then
         if syncStatusLbl then syncStatusLbl.Visible=true end
     else
-        syncReady=false
         for _,rt in ipairs(ROLL_TYPES) do
             if clientPaused[rt] then
-                if rollSvc then pcall(function() rollSvc:setSpecialRollPaused(rt,false) end) end
+                pcall(function() rollSvc:setSpecialRollPaused(rt,false) end)
                 clientPaused[rt]=false
             end
             rollProgress[rt]=math.huge
@@ -373,7 +375,7 @@ end)
 local frameCount=0
 RunService.Heartbeat:Connect(function() frameCount=frameCount+1 end)
 
--- sync rolls: pause each special roll at ≤1 remaining, fire all simultaneously
+-- sync rolls: greedy alignment — pause each die at the last ≤1 before galaxy fires
 local function syncPause(rt,sp)
     if not rollSvc then return end
     local ok=pcall(function() rollSvc:setSpecialRollPaused(rt,sp) end)
@@ -381,33 +383,36 @@ local function syncPause(rt,sp)
 end
 local function handleSyncRolls()
     if not S.syncrolls then return end
-    -- Phase 1: wait until all four are under 75
-    if not syncReady then
-        for _,rt in ipairs(ROLL_TYPES) do
-            if rollProgress[rt]>=75 then return end
-        end
-        syncReady=true
-    end
-    -- Phase 2: pause each as it hits ≤1
+    if os.clock()-syncReleasedAt<SYNC_COOLDOWN then return end
+    -- galaxy is the anchor: always pause at ≤1
+    -- others: pause only when galaxy will fire before they could finish another cycle
     for _,rt in ipairs(ROLL_TYPES) do
         if rollProgress[rt]<=1 and not clientPaused[rt] then
-            syncPause(rt,true) clientPaused[rt]=true
+            local shouldPause
+            if rt=="galaxy" then
+                shouldPause=true
+            else
+                local G=rollProgress.galaxy
+                shouldPause=G<math.huge and (G-1)<cycleLen[rt]
+            end
+            if shouldPause then syncPause(rt,true) clientPaused[rt]=true end
         end
     end
-    -- Phase 3: all four paused at ≤1 → release simultaneously
+    -- all four held at ≤1 → release simultaneously
     local allReady=true
     for _,rt in ipairs(ROLL_TYPES) do
         if not clientPaused[rt] or rollProgress[rt]>1 then allReady=false break end
     end
     if allReady then
+        syncReleasedAt=os.clock()
         for _,rt in ipairs(ROLL_TYPES) do syncPause(rt,false) clientPaused[rt]=false rollProgress[rt]=math.huge end
-        syncReady=false
     end
     -- update status label
     if syncStatusLbl then
         local function f(v) return v>=math.huge and "--" or tostring(v) end
         syncStatusLbl.Text=string.format("G:%-4s D:%-4s V:%-4s X:%-4s",f(rollProgress.golden),f(rollProgress.diamond),f(rollProgress.void),f(rollProgress.galaxy))
-        syncStatusLbl.TextColor3=syncReady and Color3.fromRGB(80,180,255) or Color3.fromRGB(200,160,40)
+        local anyHeld=false for _,rt in ipairs(ROLL_TYPES) do if clientPaused[rt] then anyHeld=true break end end
+        syncStatusLbl.TextColor3=anyHeld and Color3.fromRGB(80,180,255) or Color3.fromRGB(200,160,40)
     end
 end
 local _hookedRollREs={}
@@ -421,7 +426,13 @@ local function hookRollRE(re)
         if evName~="specialRollProgression" or type(data)~="table" then return end
         for _,rt in ipairs(ROLL_TYPES) do
             local d=data[rt]
-            if d then rollProgress[rt]=d.rollsUntilNext or math.huge end
+            if d then
+                local newVal=d.rollsUntilNext or math.huge
+                if not clientPaused[rt] and rollProgress[rt]<=1 and newVal>5 and newVal<math.huge then
+                    cycleLen[rt]=newVal
+                end
+                rollProgress[rt]=newVal
+            end
         end
         handleSyncRolls()
     end)
@@ -512,120 +523,46 @@ end)
 
 task.spawn(function()
     while true do
-        if S.roll and rollRF then pcall(function()rollRF:InvokeServer("requestRoll")end) if S.legitroll then task.wait(1.4) end
-        else task.wait(0.1)end
+        if S.syncrolls and os.clock()-syncReleasedAt<SYNC_COOLDOWN then
+            task.wait(1.2)
+        elseif S.roll and rollRF then
+            pcall(function()rollRF:InvokeServer("requestRoll")end)
+            if S.legitroll then task.wait(1.4) end
+        else task.wait(0.1) end
     end
 end)
 
--- anti-AFK: always simulate input (prevents Roblox 20-min idle kick) AND block game AutoRejoin
-local VU=game:GetService("VirtualUser")
+-- anti-AFK: disable AutoRejoin module and disconnect all Idled event handlers
+pcall(function()
+    local m=require(RS.Source.Features.AutoRejoin.AutoRejoinServiceClient)
+    m.disable()
+end)
+pcall(function()
+    for _,connection in pairs(getconnections(PL.Idled)) do
+        if connection["Disable"] then connection["Disable"](connection)
+        elseif connection["Disconnect"] then connection["Disconnect"](connection) end
+    end
+end)
+
+-- auto collect: sweep workspace.Loot via LootServiceClient
+local KNOWN_FRUITS={lightningFruit=true,iceFruit=true,fireFruit=true,universeFruit=true,magicianFruit=true,swordFruit=true}
+local collectFilter={}  -- set of fruit IDs to allow; empty = collect all
 task.spawn(function()
     while true do
-        task.wait(180)
-        pcall(function()
-            VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-            task.wait(1)
-            VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-        end)
-    end
-end)
-task.spawn(function()
-    local t=0 while not RS:FindFirstChild("Source") and t<10 do task.wait(1) t=t+1 end
-    pcall(function()
-        local _m=require(RS.Source.Features.AutoRejoin.AutoRejoinServiceClient)
-        _m.enable=function()end
-        _m.disable()
-        -- block server-to-client dispatch (Networker calls _m.autoRejoin when server fires it)
-        _m.autoRejoin=function()end
-        -- block outgoing fire even if loop somehow runs
-        task.spawn(function()
-            for _=1,10 do task.wait(0.5) if _m.networker then _m.networker.fire=function()end break end end
-        end)
-    end)
-end)
-
--- fruit inventory cap: skip collecting a fruit if already at/above this count
-local FRUIT_CAP=200
-local CAPPED_FRUITS={lightningFruit=true,iceFruit=true,fireFruit=true,universeFruit=true,magicianFruit=true,swordFruit=true}
-local _fruitIdMap=nil
-local function getFruitIdMap()
-    if _fruitIdMap then return _fruitIdMap end
-    local ok,Fr=pcall(require,RS.Source.Game.Items.Fruits)
-    if not ok then _fruitIdMap={} return _fruitIdMap end
-    local map={}
-    for _,f in ipairs(Fr.getSortedFruits()) do
-        if f.id then
-            map[f.id:lower()]=f.id
-            if f.name then map[f.name:lower()]=f.id end
-            if f.treeId then map[f.treeId:lower()]=f.id end
-        end
-    end
-    _fruitIdMap=map return map
-end
-local _invUtils=nil
-local function getInvUtils()
-    if _invUtils then return _invUtils end
-    local ok,m=pcall(require,RS.Source.InventoryItemUtils)
-    if ok and m then _invUtils=m end
-    return _invUtils
-end
-local function getFruitCount(itemName)
-    if not itemName or itemName=="" then return 0 end
-    local id=getFruitIdMap()[itemName:lower()] or itemName
-    if not CAPPED_FRUITS[id] then return 0 end
-    local utils=getInvUtils()
-    if not utils then return 0 end
-    local ok,n=pcall(utils.getAmountOwned,id)
-    return (ok and type(n)=="number") and n or 0
-end
-local function fruitModel(inst)
-    local m=inst while m and not m:IsA("Model") do m=m.Parent end return m
-end
-
--- auto collect: live ProximityPrompt cache via events (no GetDescendants polling)
-local ppCache={}
-local function ppAdd(v)
-    if v:IsA("ProximityPrompt") then
-        local a=v.ActionText:lower()
-        if a=="" or a:find("pick") or a:find("collect") or a:find("take") or a:find("grab") then
-            ppCache[v]=true
-        end
-    end
-end
-local function ppRemove(v) ppCache[v]=nil end
-workspace.DescendantAdded:Connect(ppAdd)
-workspace.DescendantRemoving:Connect(ppRemove)
-for _,v in ipairs(workspace:GetDescendants()) do ppAdd(v) end
-
-task.spawn(function()
-    local DROP_FOLDERS={"Drops","Fruits","Items","Pickups","Collectibles","GoopDrops","WorldItems"}
-    while true do
-        if S.collect then
-            local char=PL.Character
-            local hrp=char and char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                for pp in pairs(ppCache) do
-                    if pp and pp.Enabled then
-                        local m=fruitModel(pp)
-                        if not m or getFruitCount(m.Name)<FRUIT_CAP then
-                            if fireproximityprompt then pcall(fireproximityprompt,pp) end
-                        end
-                    end
-                end
-                for _,fname in ipairs(DROP_FOLDERS) do
-                    local f=workspace:FindFirstChild(fname)
-                    if f then
-                        for _,item in ipairs(f:GetChildren()) do
-                            if getFruitCount(item.Name)<FRUIT_CAP then
-                                local part=item:IsA("BasePart") and item or item:FindFirstChildOfClass("BasePart")
-                                if part and firetouchinterest then pcall(firetouchinterest,part,hrp,0) end
-                            end
-                        end
-                    end
-                end
-            end
-        end
         task.wait(0.5)
+        if not S.collect then continue end
+        pcall(function()
+            local lootRoot=workspace:FindFirstChild("Loot")
+            if not lootRoot or not lootSvc then return end
+            for _,item in ipairs(lootRoot:GetChildren()) do
+                local uniqueId=item.Name
+                local obj=lootSvc.lootById and lootSvc.lootById[uniqueId]
+                local lootId=obj and obj.data and obj.data.lootId
+                local isFruit=lootId and KNOWN_FRUITS[lootId]
+                local allowed=not isFruit or not next(collectFilter) or collectFilter[lootId]
+                if allowed then pcall(function() lootSvc:requestCollect(uniqueId) end) end
+            end
+        end)
     end
 end)
 
