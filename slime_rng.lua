@@ -1097,18 +1097,25 @@ else
 end
 
 -- ─── Bubble ───────────────────────────────────────────────────────────────────
-local pfpImage = ""
-if getcustomasset then
-    local ok, url = pcall(getcustomasset, "pfp_bg7_p03_scarlet.png")
-    if ok and url then pfpImage = url end
-end
 local bubble = Instance.new("ImageButton", g)
 bubble.Size = UDim2.new(0, 44, 0, 44)
 bubble.Position = UDim2.new(1, -57, 0, 64)
 bubble.BackgroundTransparency = 1
 bubble.BorderSizePixel = 0
-if type(pfpImage) == "string" and pfpImage ~= "" then bubble.Image = pfpImage end
 bubble.Visible = false
+-- Fetch pfp from GitHub, save locally, load via getcustomasset
+task.spawn(function()
+    local PFP_FILE = "pfp_bg7_p03_scarlet.png"
+    local PFP_URL  = "https://raw.githubusercontent.com/iMzTee/Immortality-Scripts/main/pfp_bg7_p03_scarlet.png"
+    pcall(function()
+        local data = game:HttpGet(PFP_URL, true)
+        if data and #data > 0 then writefile(PFP_FILE, data) end
+    end)
+    if getcustomasset then
+        local ok, url = pcall(getcustomasset, PFP_FILE)
+        if ok and type(url) == "string" and url ~= "" then bubble.Image = url end
+    end
+end)
 Instance.new("UICorner", bubble).CornerRadius = UDim.new(0.5, 0)
 mkStroke(bubble, C_STROKE, 2, 0.15)
 bubble.MouseButton1Click:Connect(function()
