@@ -41,12 +41,12 @@ local function zfFmt(n) if n<1000 then return tostring(math.floor(n)) end local 
 local function zfTime(s) local m=math.floor(s/60) return string.format("%d:%02d",m,math.floor(s)%60) end
 local zfCreatePopup,zfUpdatePopupResults,zfRunTest
 
-local S={gun=false,roll=false,collect=false,tele=false,black=false,syncrolls=false}
+local S={gun=false,roll=false,collect=false,tele=false,black=false,syncrolls=false,legitroll=false}
 local rfs={}
 local _allowRejoin=false -- allows the manual rejoin button to bypass the anti-AFK block
 
 local SAVE_FILE="slime_rng_state.txt"
-local SKEYS={"gun","roll","collect","tele","black","syncrolls"}
+local SKEYS={"gun","roll","collect","tele","black","syncrolls","legitroll"}
 local function saveState()
     local parts={}
     for _,k in ipairs(SKEYS) do parts[#parts+1]=k.."="..(S[k] and "1" or "0") end
@@ -152,7 +152,7 @@ end
 stopBtn.MouseButton1Click:Connect(function()
     for k in pairs(S)do S[k]=false end for _,rf in ipairs(rfs)do rf()end task.wait(0.1) g:Destroy()
 end)
-T("Auto Gun","gun"); T("Auto Roll","roll"); T("Auto Collect","collect"); T("Auto Return","tele")
+T("Auto Gun","gun"); T("Auto Roll","roll"); T("Legit Roll Speed","legitroll"); T("Auto Collect","collect"); T("Auto Return","tele")
 T("Black Screen","black",function(on)blackScreen.Visible=on end)
 T("Sync Rolls","syncrolls",function(on)
     if on then
@@ -482,7 +482,7 @@ end)
 
 task.spawn(function()
     while true do
-        if S.roll and rollRF then pcall(function()rollRF:InvokeServer("requestRoll")end)
+        if S.roll and rollRF then pcall(function()rollRF:InvokeServer("requestRoll")end) if S.legitroll then task.wait(1.4) end
         else task.wait(0.1)end
     end
 end)
