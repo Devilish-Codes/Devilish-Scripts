@@ -334,10 +334,10 @@ do
         end
         handleProgression()
     end
-    local hookedSRREs = {}
+    local hookedREs = {}
     local function hookSRRE(re)
-        if hookedSRREs[re] then return end
-        hookedSRREs[re] = true
+        if hookedREs[re] then return end
+        hookedREs[re] = true
         re.OnClientEvent:Connect(onRollEvent)
     end
     task.spawn(function()
@@ -365,10 +365,10 @@ end
 do
     local coinTotal, goopTotal = 0, 0
     local sessionStart = tick()
-    local hookedSTREs  = {}
+    local hookedREs  = {}
     local function hookSTRE(re)
-        if hookedSTREs[re] then return end
-        hookedSTREs[re] = true
+        if hookedREs[re] then return end
+        hookedREs[re] = true
         re.OnClientEvent:Connect(function(a1, a2)
             if type(a2) ~= "table" then return end
             local amt = rawget(a2, "amount")
@@ -431,10 +431,10 @@ do
     local function zoneName(id) return ZONE_NAMES[id] or ("Zone "..id) end
 
     local goopCount = 0
-    local hookedZFREs = {}
+    local hookedREs = {}
     local function hookZFRE(re)
-        if hookedZFREs[re] then return end
-        hookedZFREs[re] = true
+        if hookedREs[re] then return end
+        hookedREs[re] = true
         re.OnClientEvent:Connect(function(a1, a2)
             if a1 == "goopRewarded" and type(a2) == "table" then
                 local amt = rawget(a2, "amount")
@@ -713,7 +713,7 @@ end
 do
     local active     = false
     local zonesTable = {}
-    local zonesModule, azDataClient, zonesRF
+    local zonesModule, dataClient, zonesRF
     local dataReady  = false
 
     -- Build zone teleport positions
@@ -732,10 +732,10 @@ do
         for _ = 1, 60 do
             pcall(function()
                 if not zonesModule  then zonesModule  = require(RS.Source.Game.Items.Zones) end
-                if not azDataClient then azDataClient = require(RS.Packages.DataService).client end
+                if not dataClient then dataClient = require(RS.Packages.DataService).client end
                 if not zonesRF      then zonesRF      = RS.Packages._Index["leifstout_networker@0.3.1"].networker._remotes.ZonesService.RemoteFunction end
             end)
-            if zonesModule and azDataClient and zonesRF then dataReady = true break end
+            if zonesModule and dataClient and zonesRF then dataReady = true break end
             task.wait(0.5)
         end
     end)
@@ -745,9 +745,9 @@ do
             task.wait(1)
             if not active or not dataReady then continue end
             pcall(function()
-                local currentZone = math.max(azDataClient:get("maxZone") or 1, 1)
+                local currentZone = math.max(dataClient:get("maxZone") or 1, 1)
                 local nextZoneData = zonesModule.getZone(currentZone + 1)
-                if nextZoneData and azDataClient:get("coins") >= nextZoneData.price then
+                if nextZoneData and dataClient:get("coins") >= nextZoneData.price then
                     zonesRF:InvokeServer("requestPurchaseZone")
                 end
                 local pos = zonesTable[currentZone]
