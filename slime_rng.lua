@@ -709,49 +709,60 @@ end
 
 -- ─── Auto Zone (Buy + Teleport) ───────────────────────────────────────────────
 do
-    local active  = false
-    local lastMax = 0
-    local nextTry = 0  -- tick() timestamp; don't attempt a buy before this
+    local active     = false
+    local zonesTable = {}
+    local zonesModule, azDataClient, zonesRF
+    local dataReady  = false
 
-    local function setActive(val)
-        active = val
-        if active then
-            pcall(function() lastMax = zoneSvc:getMaxZone() end)
-            nextTry = 0
-        end
-    end
-
+    -- Build zone teleport positions
     task.spawn(function()
-        while true do
-            task.wait(2)
-            if not active then continue end
-            local max = 0
-            pcall(function() max = zoneSvc:getMaxZone() end)
-            if max > lastMax then
-                lastMax = max
-                pcall(function() zoneSvc:teleportToZone(max) end)
-                nextTry = 0
-            elseif tick() >= nextTry then
-                local before = max
-                pcall(function() zoneSvc:purchaseZone() end)
-                task.wait(1)
-                local after = before
-                pcall(function() after = zoneSvc:getMaxZone() end)
-                if after > before then
-                    lastMax = after
-                    pcall(function() zoneSvc:teleportToZone(after) end)
-                    nextTry = 0
-                else
-                    nextTry = tick() + 30
-                end
+        local zonesFolder = workspace:WaitForChild("Zones", 30)
+        if not zonesFolder then return end
+        for _, zone in ipairs(zonesFolder:GetChildren()) do
+            if zone:FindFirstChild("POI") and zone.POI:FindFirstChild("Baseplate") then
+                zonesTable[tonumber(zone.Name)] = zone.POI.Baseplate.Position + Vector3.new(0, 3, 0)
             end
         end
     end)
 
+    -- Load modules/remotes
+    task.spawn(function()
+        for _ = 1, 60 do
+            pcall(function()
+                if not zonesModule  then zonesModule  = require(RS.Source.Game.Items.Zones) end
+                if not azDataClient then azDataClient = require(RS.Packages.DataService).client end
+                if not zonesRF      then zonesRF      = RS.Packages._Index["leifstout_networker@0.3.1"].networker._remotes.ZonesService.RemoteFunction end
+            end)
+            if zonesModule and azDataClient and zonesRF then dataReady = true break end
+            task.wait(0.5)
+        end
+    end)
+
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            if not active or not dataReady then continue end
+            pcall(function()
+                local currentZone = math.max(azDataClient:get("maxZone") or 1, 1)
+                local nextZoneData = zonesModule.getZone(currentZone + 1)
+                if nextZoneData and azDataClient:get("coins") >= nextZoneData.price then
+                    zonesRF:InvokeServer("requestPurchaseZone")
+                end
+                local pos = zonesTable[currentZone]
+                if pos then
+                    local char = PL.Character
+                    if char and (char:GetPivot().Position - pos).Magnitude > 20 then
+                        char:PivotTo(CFrame.new(pos))
+                    end
+                end
+            end)
+        end
+    end)
+
     _G.AutoZone = {
-        enable   = function() setActive(true) end,
-        disable  = function() setActive(false) end,
-        toggle   = function(val) if val == nil then setActive(not active) else setActive(val) end end,
+        enable   = function() active = true end,
+        disable  = function() active = false end,
+        toggle   = function(val) if val == nil then active = not active else active = val end end,
         isActive = function() return active end,
     }
 end
