@@ -517,28 +517,26 @@ task.spawn(function()
     end
 end)
 
--- anti-AFK: no-op enable() so init() can't restart the loop, then disable it.
--- Without blocking enable(), our disable() runs before init() and gets overridden.
-local _afkOk=false
-pcall(function()
-    local _m=require(RS.Source.Features.AutoRejoin.AutoRejoinServiceClient)
-    _m.enable=function()end
-    _m.disable()
-    _afkOk=true
+-- anti-AFK: always simulate input (prevents Roblox 20-min idle kick) AND block game AutoRejoin
+local VU=game:GetService("VirtualUser")
+task.spawn(function()
+    while true do
+        task.wait(180)
+        pcall(function()
+            VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+        end)
+    end
 end)
-if not _afkOk then
-    local VU=game:GetService("VirtualUser")
-    task.spawn(function()
-        while true do
-            task.wait(600)
-            pcall(function()
-                VU:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-                task.wait(1)
-                VU:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-            end)
-        end
+task.spawn(function()
+    local t=0 while not RS:FindFirstChild("Source") and t<10 do task.wait(1) t=t+1 end
+    pcall(function()
+        local _m=require(RS.Source.Features.AutoRejoin.AutoRejoinServiceClient)
+        _m.enable=function()end
+        _m.disable()
     end)
-end
+end)
 
 -- fruit inventory cap: skip collecting a fruit if already at/above this count
 local FRUIT_CAP=200
