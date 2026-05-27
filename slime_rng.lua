@@ -982,7 +982,7 @@ local AC_DEF    = { label = "Auto Collect", key = "autoCollect", getApi = functi
 local TOGGLE_DEFS = {
     { label = "Auto Shoot",        key = "autoShoot",       getApi = function() return _G.AutoShoot end,        tip = "Focuses fire on the lowest HP enemy within 200 studs — switches when it dies" },
     { label = "Stack Rolls",       key = "stackRolls",      getApi = function() return _G.StackRolls end,       tip = "Pauses special rolls and syncs them to all fire at once" },
-    { label = "Auto Zone",         key = "autoZone",        getApi = function() return _G.AutoZone end,         tip = "Buys next zone when affordable, then teleports to it" },
+    { label = "Zone Benchmark",     key = "autoZone",        getApi = function() return _G.AutoZone end,         tip = "Buys next zone when affordable, then teleports to it" },
     { label = "Auto Buy Upgrades", key = "autoBuyUpgrades", getApi = function() return _G.AutoBuyUpgrades end,  tip = "Buys every affordable upgrade automatically, following the dependency chain" },
 }
 local AR_DEF = { label = "Auto Return", key = "autoReturn", getApi = function() return _G.AutoReturn end, tip = "Teleports back to saved position when you wander too far" }
