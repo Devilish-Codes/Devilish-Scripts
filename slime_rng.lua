@@ -152,7 +152,18 @@ end
 stopBtn.MouseButton1Click:Connect(function()
     for k in pairs(S)do S[k]=false end for _,rf in ipairs(rfs)do rf()end task.wait(0.1) g:Destroy()
 end)
-T("Auto Gun","gun"); T("Auto Roll","roll"); T("Legit Roll Speed","legitroll"); T("Auto Collect","collect"); T("Auto Return","tele")
+T("Auto Gun","gun")
+do
+    local function mkHalf(lbl,key,xOff,w)
+        local b=Instance.new("TextButton") b.Size=UDim2.new(0,w,0,26) b.Position=UDim2.new(0,xOff,0,yC) b.BorderSizePixel=0 b.TextSize=11 b.Font=Enum.Font.Gotham b.Parent=ctrlFrame Instance.new("UICorner",b).CornerRadius=UDim.new(0,4)
+        local function rf()if S[key]then b.Text=lbl.." ON" b.BackgroundColor3=Color3.fromRGB(25,70,25) b.TextColor3=Color3.fromRGB(80,230,80)else b.Text=lbl.." OFF" b.BackgroundColor3=Color3.fromRGB(70,25,25) b.TextColor3=Color3.fromRGB(230,80,80)end end
+        b.MouseButton1Click:Connect(function()S[key]=not S[key] rf() saveState() end) rf() table.insert(rfs,rf)
+    end
+    mkHalf("Auto Roll","roll",5,104)
+    mkHalf("Legit Roll","legitroll",111,104)
+    yC=yC+30
+end
+T("Auto Collect","collect"); T("Auto Return","tele")
 T("Black Screen","black",function(on)blackScreen.Visible=on end)
 T("Sync Rolls","syncrolls",function(on)
     if on then
