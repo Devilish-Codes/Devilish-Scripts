@@ -41,12 +41,12 @@ local function zfFmt(n) if n<1000 then return tostring(math.floor(n)) end local 
 local function zfTime(s) local m=math.floor(s/60) return string.format("%d:%02d",m,math.floor(s)%60) end
 local zfCreatePopup,zfUpdatePopupResults,zfRunTest
 
-local S={gun=false,roll=false,collect=false,tele=false,black=false,syncrolls=false,legitroll=false}
+local S={gun=false,roll=false,collect=false,tele=false,black=false,syncrolls=false,legitroll=false,slimeSnap=false,enemyPull=false,walkSpeed=false}
 local rfs={}
 local _allowRejoin=false -- allows the manual rejoin button to bypass the anti-AFK block
 
 local SAVE_FILE="slime_rng_state.txt"
-local SKEYS={"gun","roll","collect","tele","black","syncrolls","legitroll"}
+local SKEYS={"gun","roll","collect","tele","black","syncrolls","legitroll","slimeSnap","enemyPull","walkSpeed"}
 local function saveState()
     local parts={}
     for _,k in ipairs(SKEYS) do parts[#parts+1]=k.."="..(S[k] and "1" or "0") end
@@ -136,9 +136,10 @@ bubble.MouseButton1Click:Connect(function()bubble.Visible=false pan.Visible=true
 local function mkTab(lbl,x,w)
     local b=Instance.new("TextButton") b.Size=UDim2.new(0,w,0,24) b.Position=UDim2.new(0,x,0,34) b.BackgroundColor3=Color3.fromRGB(30,30,30) b.TextColor3=Color3.fromRGB(130,130,130) b.TextSize=11 b.Font=Enum.Font.GothamBold b.BorderSizePixel=0 b.Text=lbl b.Parent=pan Instance.new("UICorner",b).CornerRadius=UDim.new(0,4) return b
 end
-local tabCtrl=mkTab("Controls",5,70)
-local tabStats=mkTab("Stats",78,70)
-local tabServer=mkTab("Server",151,69)
+local tabCtrl=mkTab("Ctrl",5,51)
+local tabStats=mkTab("Stats",58,51)
+local tabServer=mkTab("Server",111,51)
+local tabExploit=mkTab("Exploits",164,51)
 
 -- controls frame (tab 1)
 local ctrlFrame=Instance.new("Frame") ctrlFrame.Size=UDim2.new(1,0,0,10) ctrlFrame.Position=UDim2.new(0,0,0,62) ctrlFrame.BackgroundTransparency=1 ctrlFrame.BorderSizePixel=0 ctrlFrame.Parent=pan
@@ -150,7 +151,9 @@ local function T(lbl,key,cb)
     b.MouseButton1Click:Connect(function()S[key]=not S[key] rf() saveState() if cb then cb(S[key]) end end) rf() if cb then cb(S[key]) end yC=yC+30 table.insert(rfs,rf)
 end
 stopBtn.MouseButton1Click:Connect(function()
-    for k in pairs(S)do S[k]=false end for _,rf in ipairs(rfs)do rf()end task.wait(0.1) g:Destroy()
+    for k in pairs(S)do S[k]=false end for _,rf in ipairs(rfs)do rf()end
+    pcall(function() local c=PL.Character local h=c and c:FindFirstChildOfClass("Humanoid") if h then h.WalkSpeed=16 end end)
+    task.wait(0.1) g:Destroy()
 end)
 T("Auto Gun","gun")
 do
@@ -227,10 +230,25 @@ rejoinBtn.MouseButton1Click:Connect(function()
     else pcall(function()TS:TeleportToPlaceInstance(game.PlaceId,game.JobId,PL)end) end
 end)
 
+-- exploits frame (tab 4)
+local exploitFrame=Instance.new("Frame") exploitFrame.Size=UDim2.new(1,0,0,10) exploitFrame.Position=UDim2.new(0,0,0,62) exploitFrame.BackgroundTransparency=1 exploitFrame.BorderSizePixel=0 exploitFrame.Visible=false exploitFrame.Parent=pan
+local yE=4
+local function TE(lbl,key,cb)
+    local b=Instance.new("TextButton") b.Size=UDim2.new(1,-10,0,26) b.Position=UDim2.new(0,5,0,yE) b.BorderSizePixel=0 b.TextSize=12 b.Font=Enum.Font.Gotham b.Parent=exploitFrame Instance.new("UICorner",b).CornerRadius=UDim.new(0,4)
+    local function rf()if S[key]then b.Text=lbl.." ON" b.BackgroundColor3=Color3.fromRGB(25,70,25) b.TextColor3=Color3.fromRGB(80,230,80)else b.Text=lbl.." OFF" b.BackgroundColor3=Color3.fromRGB(70,25,25) b.TextColor3=Color3.fromRGB(230,80,80)end end
+    b.MouseButton1Click:Connect(function()S[key]=not S[key] rf() saveState() if cb then cb(S[key]) end end) rf() if cb then cb(S[key]) end yE=yE+30 table.insert(rfs,rf)
+end
+TE("Slime Snap","slimeSnap")
+TE("Enemy Pull","enemyPull")
+TE("Walk Speed","walkSpeed",function(on)
+    pcall(function() local c=PL.Character local h=c and c:FindFirstChildOfClass("Humanoid") if h then h.WalkSpeed=on and 50 or 16 end end)
+end)
+exploitFrame.Size=UDim2.new(1,0,0,yE+4)
+
 -- tab switching
 local function switchTab(t)
-    local frames={ctrl=ctrlFrame,stats=statsFrame,server=serverFrame}
-    local tabs={ctrl=tabCtrl,stats=tabStats,server=tabServer}
+    local frames={ctrl=ctrlFrame,stats=statsFrame,server=serverFrame,exploit=exploitFrame}
+    local tabs={ctrl=tabCtrl,stats=tabStats,server=tabServer,exploit=tabExploit}
     for k,f in pairs(frames) do f.Visible=(k==t) end
     for k,tb in pairs(tabs) do
         tb.BackgroundColor3=(k==t) and Color3.fromRGB(50,50,70) or Color3.fromRGB(30,30,30)
@@ -244,6 +262,7 @@ end
 tabCtrl.MouseButton1Click:Connect(function()switchTab("ctrl")end)
 tabStats.MouseButton1Click:Connect(function()switchTab("stats")end)
 tabServer.MouseButton1Click:Connect(function()switchTab("server")end)
+tabExploit.MouseButton1Click:Connect(function()switchTab("exploit")end)
 switchTab("ctrl")
 
 -- equip loop
@@ -498,10 +517,12 @@ task.spawn(function()
     end
 end)
 
--- anti-AFK: disable AutoRejoin module directly; fallback to VirtualUser every 10min
+-- anti-AFK: no-op enable() so init() can't restart the loop, then disable it.
+-- Without blocking enable(), our disable() runs before init() and gets overridden.
 local _afkOk=false
 pcall(function()
     local _m=require(RS.Source.Features.AutoRejoin.AutoRejoinServiceClient)
+    _m.enable=function()end
     _m.disable()
     _afkOk=true
 end)
@@ -768,5 +789,94 @@ zfBtn.MouseButton1Click:Connect(function()
         zfRunning=false zfRefreshBtn()
     elseif not zfDone then
         task.spawn(zfRunTest)
+    end
+end)
+
+-- ── Exploits ──────────────────────────────────────────────────────────────────
+
+-- Slime Snap: teleport each player slime 5 studs toward player from its target enemy
+RunService.Heartbeat:Connect(function()
+    if not S.slimeSnap or not gameplaySvc then return end
+    local gp=gameplaySvc.gameplay if not gp then return end
+    local char=PL.Character local hrp=char and char:FindFirstChild("HumanoidRootPart") if not hrp then return end
+    local playerPos=Vector3.new(hrp.Position.X,0,hrp.Position.Z)
+    pcall(function()
+        for _,slime in pairs(gp.slimes) do
+            local tid=slime.targetUniqueId
+            if tid then
+                local enemy=gp.enemies[tid]
+                if enemy then
+                    local toPlayer=playerPos-enemy.pos
+                    local offset=toPlayer.Magnitude>0 and toPlayer.Unit*5 or Vector3.zero
+                    slime.pos=enemy.pos+offset slime.velocity=Vector3.new(0,0,0)
+                end
+            end
+        end
+    end)
+end)
+
+-- Enemy Pull: arrange enemies in a square grid 10 studs ahead, 2 studs apart
+RunService.Heartbeat:Connect(function()
+    if not S.enemyPull or not gameplaySvc then return end
+    local gp=gameplaySvc.gameplay if not gp then return end
+    local char=PL.Character if not char then return end
+    local hrp=char:FindFirstChild("HumanoidRootPart") if not hrp then return end
+    local fwd=hrp.CFrame.LookVector local right=hrp.CFrame.RightVector
+    local base=Vector3.new(hrp.Position.X+fwd.X*10,0,hrp.Position.Z+fwd.Z*10)
+    pcall(function()
+        local list={} for id,enemy in pairs(gp.enemies) do list[#list+1]={id=id,enemy=enemy} end
+        table.sort(list,function(a,b) return tostring(a.id)<tostring(b.id) end)
+        local n=#list local cols=math.max(1,math.ceil(math.sqrt(n))) local rows=math.ceil(n/cols)
+        for i,entry in ipairs(list) do
+            local idx=i-1 local c=idx%cols local r=math.floor(idx/cols)
+            local ox=(c-(cols-1)/2)*2 local oz=(r-(rows-1)/2)*2
+            entry.enemy.pos=Vector3.new(base.X+right.X*ox+fwd.X*oz,0,base.Z+right.Z*ox+fwd.Z*oz)
+            entry.enemy.velocity=Vector3.new(0,0,0)
+        end
+    end)
+    -- Re-target slimes whose target enemy has been removed
+    pcall(function()
+        local newId=next(gp.enemies)
+        if newId then
+            for _,slime in pairs(gp.slimes) do
+                if not slime.targetUniqueId or not gp.enemies[slime.targetUniqueId] then
+                    slime.targetUniqueId=newId
+                end
+            end
+        end
+    end)
+end)
+
+-- Walk Speed: re-apply on respawn
+PL.CharacterAdded:Connect(function()
+    if not S.walkSpeed then return end
+    task.wait(0.5)
+    pcall(function() local h=PL.Character and PL.Character:FindFirstChildOfClass("Humanoid") if h then h.WalkSpeed=50 end end)
+end)
+
+-- setState hook: when Enemy Pull active, redirect idle→targeting so slimes keep attacking
+local _setStateHooked=false
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if not _setStateHooked and gameplaySvc and gameplaySvc.gameplay then
+            local gp=gameplaySvc.gameplay
+            local _,anySl=next(gp.slimes)
+            if anySl then
+                local mt=getmetatable(anySl)
+                if mt and mt.setState then
+                    local orig=mt.setState
+                    mt.setState=function(self,state,targetId)
+                        if S.enemyPull and state==1 then
+                            local cur=gameplaySvc and gameplaySvc.gameplay
+                            if cur then local newId=next(cur.enemies) if newId then return orig(self,2,newId) end end
+                        end
+                        return orig(self,state,targetId)
+                    end
+                    _setStateHooked=true
+                end
+            end
+        end
+        if _setStateHooked then break end
     end
 end)
