@@ -535,6 +535,12 @@ task.spawn(function()
         local _m=require(RS.Source.Features.AutoRejoin.AutoRejoinServiceClient)
         _m.enable=function()end
         _m.disable()
+        -- block server-to-client dispatch (Networker calls _m.autoRejoin when server fires it)
+        _m.autoRejoin=function()end
+        -- block outgoing fire even if loop somehow runs
+        task.spawn(function()
+            for _=1,10 do task.wait(0.5) if _m.networker then _m.networker.fire=function()end break end end
+        end)
     end)
 end)
 
