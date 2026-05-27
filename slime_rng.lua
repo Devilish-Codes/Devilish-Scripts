@@ -332,12 +332,18 @@ setTooltip(closeBtn, "Close panel and disable all active scripts")
 
 -- ─── Drag ─────────────────────────────────────────────────────────────────────
 local dragging = false
-local dragOff = Vector2.new(0, 0)
+local dragStart, panStart
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = true
-        dragOff = Vector2.new(input.Position.X, input.Position.Y) - panel.AbsolutePosition
+        dragStart = input.Position
+        panStart  = panel.Position
     end
+end)
+UIS.InputChanged:Connect(function(input)
+    if not dragging or input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+    local d = input.Position - dragStart
+    panel.Position = UDim2.new(panStart.X.Scale, panStart.X.Offset + d.X, panStart.Y.Scale, panStart.Y.Offset + d.Y)
 end)
 UIS.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -350,13 +356,6 @@ UIS.InputEnded:Connect(function(input)
             saveState(state)
         end
     end
-end)
-UIS.InputChanged:Connect(function(input)
-    if not dragging or input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
-    local vp = workspace.CurrentCamera.ViewportSize
-    panel.Position = UDim2.new(0,
-        math.clamp(input.Position.X - dragOff.X, 0, vp.X - W), 0,
-        math.clamp(input.Position.Y - dragOff.Y, 0, vp.Y - 50))
 end)
 
 -- ─── Tab bar ──────────────────────────────────────────────────────────────────
