@@ -500,7 +500,7 @@ local C_BSTR_OFF = Color3.fromRGB(180, 30, 30)
 local W      = 299
 local HALF_W = 141
 local TAB_W  = math.floor(W / 2)
-local PANEL_H_CONTROLS = 215
+local PANEL_H_CONTROLS = 247
 local PANEL_H_PRESTIGE = 211
 
 -- ─── Style helpers ────────────────────────────────────────────────────────────
@@ -752,7 +752,7 @@ mkGrad(tabDiv, C_DIV, Color3.fromRGB(150, 20, 55), 0)
 
 -- ─── Content frames (explicit sizes for child layout) ────────────────────────
 local controlsFrame = Instance.new("Frame", panel)
-controlsFrame.Size = UDim2.new(0, W, 0, 154)
+controlsFrame.Size = UDim2.new(0, W, 0, 186)
 controlsFrame.Position = UDim2.new(0, 0, 0, 61)
 controlsFrame.BackgroundTransparency = 1
 controlsFrame.BorderSizePixel = 0
