@@ -511,17 +511,17 @@ PL.Idled:Connect(function()
     VirtualUser:ClickButton2(Vector2.new())
 end)
 
--- ─── Auto Rebirth (2-min cooldown between attempts) ─────────────────────────
+-- ─── Auto Rebirth (configurable cooldown between attempts) ──────────────────
 do
     local active = false
     local inFlight = false
-    local REBIRTH_CD = 120 -- 2 minutes
-    local lastAttempt = tick() - REBIRTH_CD -- fire immediately on first enable
+    local rebirthCD = 240 -- seconds, default 4 minutes
+    local lastAttempt = tick() - rebirthCD -- fire immediately on first enable
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(1)
             if not active or not remotes or inFlight then continue end
-            if tick() - lastAttempt < REBIRTH_CD then continue end
+            if tick() - lastAttempt < rebirthCD then continue end
             local rf = findRemoteFunction(remotes, "Rebirth")
             if not rf then continue end
             inFlight = true
@@ -537,6 +537,8 @@ do
         disable  = function() active = false end,
         toggle   = function(val) if val == nil then active = not active else active = val end end,
         isActive = function() return active end,
+        setDelay = function(minutes) rebirthCD = minutes * 60; lastAttempt = tick() - rebirthCD end,
+        getDelay = function() return rebirthCD / 60 end,
     }
 end
 
@@ -618,7 +620,7 @@ local W      = 299
 local HALF_W = 141
 local TAB_W  = math.floor(W / 2)
 local PANEL_H_CONTROLS = 253
-local PANEL_H_PRESTIGE = 211
+local PANEL_H_PRESTIGE = 241
 
 -- ─── Style helpers ────────────────────────────────────────────────────────────
 local function mkGrad(parent, c1, c2, rot)
@@ -1097,6 +1099,94 @@ end
 
 hLine(prestigeFrame, 72)
 
+-- ─── Rebirth delay slider (minutes) ─────────────────────────────────────────
+do
+    local SLIDER_Y = 78
+    local SLIDER_X = 8
+    local SLIDER_W = W - 16
+    local TRACK_H  = 6
+    local KNOB_D   = 14
+    local MIN_MIN  = 1
+    local MAX_MIN  = 10
+    local savedMin = savedState.rebirthDelay or 4
+
+    local sliderLabel = Instance.new("TextLabel", prestigeFrame)
+    sliderLabel.Size = UDim2.new(0, SLIDER_W, 0, 14)
+    sliderLabel.Position = UDim2.new(0, SLIDER_X, 0, SLIDER_Y)
+    sliderLabel.BackgroundTransparency = 1
+    sliderLabel.TextColor3 = Color3.fromRGB(215, 190, 255)
+    sliderLabel.TextSize = 10
+    sliderLabel.Font = Enum.Font.GothamBold
+    sliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+    sliderLabel.Text = "Rebirth Delay: " .. savedMin .. " min"
+
+    local track = Instance.new("Frame", prestigeFrame)
+    track.Size = UDim2.new(0, SLIDER_W, 0, TRACK_H)
+    track.Position = UDim2.new(0, SLIDER_X, 0, SLIDER_Y + 16)
+    track.BackgroundColor3 = Color3.fromRGB(30, 15, 50)
+    track.BorderSizePixel = 0
+    Instance.new("UICorner", track).CornerRadius = UDim.new(0, 3)
+    mkStroke(track, C_STROKE, 1, 0.3)
+
+    local fill = Instance.new("Frame", track)
+    fill.Size = UDim2.fromScale(0, 1)
+    fill.BackgroundColor3 = Color3.fromRGB(130, 80, 220)
+    fill.BorderSizePixel = 0
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 3)
+
+    local knob = Instance.new("TextButton", track)
+    knob.Size = UDim2.new(0, KNOB_D, 0, KNOB_D)
+    knob.AnchorPoint = Vector2.new(0.5, 0.5)
+    knob.BackgroundColor3 = Color3.fromRGB(180, 140, 255)
+    knob.Text = ""
+    knob.BorderSizePixel = 0
+    knob.ZIndex = 2
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+    mkStroke(knob, Color3.fromRGB(220, 200, 255), 1.5, 0.15)
+
+    local function setSliderValue(minutes)
+        minutes = math.clamp(math.floor(minutes + 0.5), MIN_MIN, MAX_MIN)
+        local frac = (minutes - MIN_MIN) / (MAX_MIN - MIN_MIN)
+        fill.Size = UDim2.fromScale(frac, 1)
+        knob.Position = UDim2.new(frac, 0, 0.5, 0)
+        sliderLabel.Text = "Rebirth Delay: " .. minutes .. " min"
+        local api = _G.SL_AutoRebirth
+        if api then api.setDelay(minutes) end
+    end
+
+    local draggingSlider = false
+    local function updateFromInput(inputPos)
+        local absX = track.AbsolutePosition.X
+        local absW = track.AbsoluteSize.X
+        local rel = math.clamp((inputPos.X - absX) / absW, 0, 1)
+        local minutes = math.floor(MIN_MIN + rel * (MAX_MIN - MIN_MIN) + 0.5)
+        setSliderValue(minutes)
+        local state = loadState()
+        state.rebirthDelay = minutes
+        saveState(state)
+    end
+
+    knob.MouseButton1Down:Connect(function() draggingSlider = true end)
+    track.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            draggingSlider = true
+            updateFromInput(input.Position)
+        end
+    end)
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            updateFromInput(input.Position)
+        end
+    end)
+    game:GetService("UserInputService").InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            draggingSlider = false
+        end
+    end)
+
+    setSliderValue(savedMin)
+end
+
 local function mkStatusLabel(parent, text, y)
     local lbl = Instance.new("TextLabel", parent)
     lbl.Size = UDim2.new(0, W - 16, 0, 18)
@@ -1110,9 +1200,9 @@ local function mkStatusLabel(parent, text, y)
     return lbl
 end
 
-local lblRebirths  = mkStatusLabel(prestigeFrame, "Rebirths: --",  80)
-local lblEvolution = mkStatusLabel(prestigeFrame, "Evolution: --", 100)
-local lblAscension = mkStatusLabel(prestigeFrame, "Ascension: --", 120)
+local lblRebirths  = mkStatusLabel(prestigeFrame, "Rebirths: --",  110)
+local lblEvolution = mkStatusLabel(prestigeFrame, "Evolution: --", 130)
+local lblAscension = mkStatusLabel(prestigeFrame, "Ascension: --", 150)
 
 -- ─── State restoration ───────────────────────────────────────────────────────
 for _, def in ipairs(CTRL_DEFS) do
