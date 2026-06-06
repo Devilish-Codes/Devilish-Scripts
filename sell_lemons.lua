@@ -311,76 +311,99 @@ do
     }
 end
 
--- ─── Auto Cash Drops ──────────────────────────────────────────────────────────
+-- ─── Auto Cash Drops (TP to each drop, touch to collect, TP back) ───────────
 do
     local active = false
     local conn
-    local function findDropRemotes()
-        -- Search all descendants
-        pcall(function()
-            for _, v in RS:GetDescendants() do
-                if not cashDropNew and v.Name == "CashDropService.New" and v:IsA("RemoteEvent") then
-                    cashDropNew = v
-                end
-                if not cashDropRedeem and v.Name == "CashDropService.Redeem" and v:IsA("RemoteFunction") then
-                    cashDropRedeem = v
-                end
-                if cashDropNew and cashDropRedeem then break end
-            end
-        end)
-        -- Fallback: try requiring CashDropService to force remote creation
-        if not cashDropNew or not cashDropRedeem then
-            pcall(function()
-                local svc = RS:FindFirstChild("Modules")
-                svc = svc and svc:FindFirstChild("Service")
-                svc = svc and svc:FindFirstChild("CashDropService")
-                if svc then require(svc) end
-            end)
+    local pendingDrops = {}
+
+    -- Hook the New event to capture drop positions as they arrive
+    local function tryHook()
+        if conn then return end
+        if not cashDropNew then
             pcall(function()
                 for _, v in RS:GetDescendants() do
-                    if not cashDropNew and v.Name == "CashDropService.New" and v:IsA("RemoteEvent") then
-                        cashDropNew = v
+                    if v.Name == "CashDropService.New" and v:IsA("RemoteEvent") then
+                        cashDropNew = v; break
                     end
-                    if not cashDropRedeem and v.Name == "CashDropService.Redeem" and v:IsA("RemoteFunction") then
-                        cashDropRedeem = v
-                    end
-                    if cashDropNew and cashDropRedeem then break end
                 end
             end)
         end
-    end
-    local function tryConnect()
-        if conn then return end
-        if not cashDropNew or not cashDropRedeem then findDropRemotes() end
-        if cashDropNew and cashDropRedeem then
-            print("[Sell Lemons] CashDrop remotes connected")
-            conn = cashDropNew.OnClientEvent:Connect(function(dropId)
-                if active then
-                    pcall(cashDropRedeem.InvokeServer, cashDropRedeem, dropId)
+        if cashDropNew then
+            conn = cashDropNew.OnClientEvent:Connect(function(dropId, lifetime, pos)
+                if active and pos then
+                    table.insert(pendingDrops, pos)
                 end
             end)
+            print("[Sell Lemons] CashDrop event hooked")
         end
     end
+
+    -- Scan workspace for CashDrop parts (Bag child = cash drop indicator)
+    local function findDropParts()
+        local positions = {}
+        pcall(function()
+            for _, desc in workspace:GetDescendants() do
+                if desc.Name == "Bag" and desc:IsA("BasePart")
+                    and desc.Parent and desc.Parent:IsA("BasePart")
+                    and desc.Parent.CollisionGroup == "CharactersOnly" then
+                    table.insert(positions, desc.Position)
+                end
+            end
+        end)
+        return positions
+    end
+
+    -- TP to drops, collect via touch, TP back
+    local function collectDrops()
+        local char = PL.Character
+        if not char then return end
+        local pivot = char:GetPivot()
+        local homePos = pivot.Position
+
+        -- Merge pending event positions + scanned workspace positions
+        local drops = findDropParts()
+        for _, pos in ipairs(pendingDrops) do
+            table.insert(drops, pos)
+        end
+        pendingDrops = {}
+
+        if #drops == 0 then return end
+
+        for _, pos in ipairs(drops) do
+            char = PL.Character
+            if not char then break end
+            local off = Vector3.new(math.random() - 0.5, 0, math.random() - 0.5) * 2
+            char:PivotTo(CFrame.new(pos + off))
+            task.wait(0.3)
+        end
+
+        -- TP back home
+        char = PL.Character
+        if char then
+            char:PivotTo(CFrame.new(homePos))
+        end
+    end
+
     local function setActive(val)
         active = val
-        if active then
-            tryConnect()
-        elseif conn then
+        if active then tryHook() end
+        if not active and conn then
             conn:Disconnect()
             conn = nil
         end
     end
+
+    -- Collect every 30 seconds
     task.spawn(function()
         while _G.SellLemonsMain do
-            task.wait(1)
-            if active and not conn then
-                tryConnect()
-                if not conn then
-                    print("[Sell Lemons] CashDrop: still searching for remotes...")
-                end
-            end
+            task.wait(30)
+            if not active then continue end
+            if not conn then tryHook() end
+            pcall(collectDrops)
         end
     end)
+
     _G.SL_AutoCashDrops = {
         enable   = function() setActive(true) end,
         disable  = function() setActive(false) end,
