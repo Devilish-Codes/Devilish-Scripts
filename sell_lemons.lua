@@ -130,7 +130,10 @@ CS:GetInstanceAddedSignal("Tycoon.Purchasable"):Connect(suppressAnimations)
 -- ─── Price helper (cheapest first) ───────────────────────────────────────────
 local function getPrice(name)
     if Balance and Balance.PurchasePrices then
-        return Balance.PurchasePrices[name] or 999999
+        local p = Balance.PurchasePrices[name]
+        if p then return p end
+        p = Balance.PurchasePrices[name:gsub(" ", "")]
+        if p then return p end
     end
     return 999999
 end
