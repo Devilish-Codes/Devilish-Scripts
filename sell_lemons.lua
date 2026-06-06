@@ -68,6 +68,13 @@ task.wait(3)
 -- ─── Balance module (for price sorting) ──────────────────────────────────────
 local Balance
 pcall(function() Balance = require(RS:WaitForChild("Balance", 5)) end)
+if Balance and Balance.PurchasePrices then
+    local count = 0
+    for _ in pairs(Balance.PurchasePrices) do count = count + 1 end
+    print("[Sell Lemons] Balance loaded (" .. count .. " prices)")
+else
+    print("[Sell Lemons] WARNING: Balance not loaded — purchases will NOT be sorted by price")
+end
 
 -- ─── CashDrop remote discovery ────────────────────────────────────────────────
 local cashDropNew, cashDropRedeem
@@ -131,6 +138,7 @@ end
 -- ─── Auto Purchase (both tags, sorted cheapest first, 10 per tick) ──────────
 do
     local active = false
+    local debugOnce = true
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(0.5)
@@ -146,13 +154,20 @@ do
                             seen[item] = true
                             local rf = findRemoteFunction(item, "Purchase")
                             if rf then
-                                table.insert(items, {rf = rf, price = getPrice(item.Name)})
+                                table.insert(items, {rf = rf, price = getPrice(item.Name), name = item.Name})
                             end
                         end
                     end
                 end
                 table.sort(items, function(a, b) return a.price < b.price end)
-                -- Buy cheapest 10 per tick to avoid blocking on 400+ items
+                -- Debug: print first batch of sorted items once
+                if debugOnce and #items > 0 then
+                    debugOnce = false
+                    print("[AutoPurchase] " .. #items .. " unpurchased items found. Top 10:")
+                    for idx = 1, math.min(10, #items) do
+                        print("  " .. idx .. ". " .. items[idx].name .. " (price=" .. tostring(items[idx].price) .. ")")
+                    end
+                end
                 for idx, entry in ipairs(items) do
                     if idx > 10 then break end
                     pcall(entry.rf.InvokeServer, entry.rf, false)
