@@ -141,7 +141,6 @@ end
 -- ─── Auto Purchase (both tags, sorted cheapest first, 10 per tick) ──────────
 do
     local active = false
-    local debugOnce = true
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(0.5)
@@ -157,20 +156,12 @@ do
                             seen[item] = true
                             local rf = findRemoteFunction(item, "Purchase")
                             if rf then
-                                table.insert(items, {rf = rf, price = getPrice(item.Name), name = item.Name})
+                                table.insert(items, {rf = rf, price = getPrice(item.Name)})
                             end
                         end
                     end
                 end
                 table.sort(items, function(a, b) return a.price < b.price end)
-                -- Debug: print first batch of sorted items once
-                if debugOnce and #items > 0 then
-                    debugOnce = false
-                    print("[AutoPurchase] " .. #items .. " unpurchased items found. Top 10:")
-                    for idx = 1, math.min(10, #items) do
-                        print("  " .. idx .. ". " .. items[idx].name .. " (price=" .. tostring(items[idx].price) .. ")")
-                    end
-                end
                 for idx, entry in ipairs(items) do
                     if idx > 10 then break end
                     pcall(entry.rf.InvokeServer, entry.rf, false)
@@ -230,17 +221,13 @@ end
 -- ─── Auto Wake ────────────────────────────────────────────────────────────────
 do
     local active = false
-    local debugOnce = true
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(0.5)
             if not active or not remotes then continue end
             pcall(function()
                 local wakeRF = findRemoteFunction(remotes, "WakeIncomeStream")
-                if not wakeRF then
-                    if debugOnce then debugOnce = false; print("[AutoWake] WakeIncomeStream RF not found") end
-                    return
-                end
+                if not wakeRF then return end
                 -- Build set of earners with active managers
                 local managed = {}
                 for _, item in CS:GetTagged("Tycoon.Purchase") do
@@ -252,20 +239,6 @@ do
                             end
                         end
                     end
-                end
-                if debugOnce then
-                    debugOnce = false
-                    local managedList = {}
-                    for k in pairs(managed) do table.insert(managedList, k) end
-                    print("[AutoWake] Managed earners: " .. (next(managed) and table.concat(managedList, ", ") or "none"))
-                    local earnerNames = {}
-                    for _, earner in CS:GetTagged("Tycoon.Earner") do
-                        if earner:IsDescendantOf(myTycoon) then
-                            local skip = managed[earner.Name:lower()] and " (SKIPPED-managed)" or ""
-                            table.insert(earnerNames, earner.Name .. skip)
-                        end
-                    end
-                    print("[AutoWake] Earners found: " .. table.concat(earnerNames, ", "))
                 end
                 for _, earner in CS:GetTagged("Tycoon.Earner") do
                     if earner:IsDescendantOf(myTycoon) and not managed[earner.Name:lower()] then
@@ -380,35 +353,18 @@ do
         pendingDrops = {}
 
         if #drops == 0 then return end
-        print("[AutoDrop] Collecting " .. #drops .. " drops")
-        -- Debug: print first 3 positions
-        for i = 1, math.min(3, #drops) do
-            print("[AutoDrop] Drop " .. i .. " pos: " .. tostring(drops[i]))
-        end
-        print("[AutoDrop] Home pos: " .. tostring(homePos))
-        print("[AutoDrop] Char exists: " .. tostring(char ~= nil))
 
-        local collected = 0
         for _, pos in ipairs(drops) do
             char = PL.Character
-            if not char then print("[AutoDrop] No character, stopping"); break end
-            local ok, err = pcall(function()
-                char:PivotTo(CFrame.new(pos))
-            end)
-            if not ok then
-                print("[AutoDrop] PivotTo failed: " .. tostring(err))
-                break
-            end
-            collected = collected + 1
+            if not char then break end
+            char:PivotTo(CFrame.new(pos))
             task.wait()
         end
-        print("[AutoDrop] TP'd to " .. collected .. "/" .. #drops .. " drops")
 
         -- TP back home
         char = PL.Character
         if char then
             char:PivotTo(CFrame.new(homePos))
-            print("[AutoDrop] Returned home")
         end
     end
 
@@ -481,6 +437,37 @@ do
         end
     end)
     _G.SL_AutoPowers = {
+        enable   = function() active = true end,
+        disable  = function() active = false end,
+        toggle   = function(val) if val == nil then active = not active else active = val end end,
+        isActive = function() return active end,
+    }
+end
+
+-- ─── Auto Fruit (click fruit on earner trees) ───────────────────────────────
+do
+    local active = false
+    task.spawn(function()
+        while _G.SellLemonsMain do
+            task.wait(0.5)
+            if not active then continue end
+            pcall(function()
+                for _, earner in CS:GetTagged("Tycoon.Earner") do
+                    if earner:IsDescendantOf(myTycoon) then
+                        local cd = earner:FindFirstChildWhichIsA("ClickDetector", true)
+                        if cd then
+                            pcall(fireclickdetector, cd)
+                        end
+                        local pp = earner:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        if pp then
+                            pcall(fireproximityprompt, pp)
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+    _G.SL_AutoFruit = {
         enable   = function() active = true end,
         disable  = function() active = false end,
         toggle   = function(val) if val == nil then active = not active else active = val end end,
@@ -868,6 +855,7 @@ CTRL_DEFS = {
     {key = "autoCashDrops",label = "Auto Drops",    getApi = function() return _G.SL_AutoCashDrops end,tip = "Auto-redeems cash drops"},
     {key = "autoPhone",    label = "Auto Phone",    getApi = function() return _G.SL_AutoPhone end,    tip = "Accepts phone offers automatically"},
     {key = "autoPowers",   label = "Auto Powers",   getApi = function() return _G.SL_AutoPowers end,   tip = "Buys affordable power upgrades"},
+    {key = "autoFruit",    label = "Auto Fruit",    getApi = function() return _G.SL_AutoFruit end,    tip = "Picks fruit from earner trees"},
 }
 
 PRESTIGE_DEFS = {
