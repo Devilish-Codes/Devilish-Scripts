@@ -161,7 +161,7 @@ do
     }
 end
 
--- ─── Auto Build (decorations, structures — sorted cheapest first) ───────────
+-- ─── Auto Build (all non-earner purchases — sorted cheapest first) ──────────
 do
     local active = false
     task.spawn(function()
@@ -170,15 +170,21 @@ do
             if not active then continue end
             pcall(function()
                 local items = {}
+                for _, item in CS:GetTagged("Tycoon.Purchasable") do
+                    if item:IsDescendantOf(myTycoon)
+                        and not item:GetAttribute("Purchased") then
+                        local rf = findRemoteFunction(item, "Purchase")
+                        if rf then
+                            table.insert(items, {rf = rf, price = getPrice(item.Name)})
+                        end
+                    end
+                end
                 for _, item in CS:GetTagged("Tycoon.Purchase") do
                     if item:IsDescendantOf(myTycoon)
                         and not item:GetAttribute("Purchased") then
-                        local cat = item:GetAttribute("Category")
-                        if cat == nil or cat == "Decoration" or cat == "Structure" then
-                            local rf = findRemoteFunction(item, "Purchase")
-                            if rf then
-                                table.insert(items, {rf = rf, price = getPrice(item.Name)})
-                            end
+                        local rf = findRemoteFunction(item, "Purchase")
+                        if rf then
+                            table.insert(items, {rf = rf, price = getPrice(item.Name)})
                         end
                     end
                 end
