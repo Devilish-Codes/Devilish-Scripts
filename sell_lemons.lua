@@ -270,6 +270,11 @@ do
                 for _, earner in CS:GetTagged("Tycoon.Earner") do
                     if earner:IsDescendantOf(myTycoon) and not managed[earner.Name:lower()] then
                         pcall(wakeRF.InvokeServer, wakeRF, earner.Name)
+                        -- Also try without spaces (server may use CamelCase key)
+                        local noSpaces = earner.Name:gsub(" ", "")
+                        if noSpaces ~= earner.Name then
+                            pcall(wakeRF.InvokeServer, wakeRF, noSpaces)
+                        end
                     end
                 end
             end)
@@ -310,27 +315,45 @@ end
 do
     local active = false
     local conn
+    local function findDropRemotes()
+        -- Search all descendants
+        pcall(function()
+            for _, v in RS:GetDescendants() do
+                if not cashDropNew and v.Name == "CashDropService.New" and v:IsA("RemoteEvent") then
+                    cashDropNew = v
+                end
+                if not cashDropRedeem and v.Name == "CashDropService.Redeem" and v:IsA("RemoteFunction") then
+                    cashDropRedeem = v
+                end
+                if cashDropNew and cashDropRedeem then break end
+            end
+        end)
+        -- Fallback: try requiring CashDropService to force remote creation
+        if not cashDropNew or not cashDropRedeem then
+            pcall(function()
+                local svc = RS:FindFirstChild("Modules")
+                svc = svc and svc:FindFirstChild("Service")
+                svc = svc and svc:FindFirstChild("CashDropService")
+                if svc then require(svc) end
+            end)
+            pcall(function()
+                for _, v in RS:GetDescendants() do
+                    if not cashDropNew and v.Name == "CashDropService.New" and v:IsA("RemoteEvent") then
+                        cashDropNew = v
+                    end
+                    if not cashDropRedeem and v.Name == "CashDropService.Redeem" and v:IsA("RemoteFunction") then
+                        cashDropRedeem = v
+                    end
+                    if cashDropNew and cashDropRedeem then break end
+                end
+            end)
+        end
+    end
     local function tryConnect()
         if conn then return end
-        if not cashDropNew then
-            pcall(function()
-                for _, v in RS:GetDescendants() do
-                    if v.Name == "CashDropService.New" and v:IsA("RemoteEvent") then
-                        cashDropNew = v; break
-                    end
-                end
-            end)
-        end
-        if not cashDropRedeem then
-            pcall(function()
-                for _, v in RS:GetDescendants() do
-                    if v.Name == "CashDropService.Redeem" and v:IsA("RemoteFunction") then
-                        cashDropRedeem = v; break
-                    end
-                end
-            end)
-        end
+        if not cashDropNew or not cashDropRedeem then findDropRemotes() end
         if cashDropNew and cashDropRedeem then
+            print("[Sell Lemons] CashDrop remotes connected")
             conn = cashDropNew.OnClientEvent:Connect(function(dropId)
                 if active then
                     pcall(cashDropRedeem.InvokeServer, cashDropRedeem, dropId)
@@ -350,7 +373,12 @@ do
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(1)
-            if active and not conn then tryConnect() end
+            if active and not conn then
+                tryConnect()
+                if not conn then
+                    print("[Sell Lemons] CashDrop: still searching for remotes...")
+                end
+            end
         end
     end)
     _G.SL_AutoCashDrops = {
