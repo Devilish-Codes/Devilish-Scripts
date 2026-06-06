@@ -65,6 +65,10 @@ end
 -- Wait for entities to finish replicating (tags, remotes)
 task.wait(3)
 
+-- ─── Balance module (for price sorting) ──────────────────────────────────────
+local Balance
+pcall(function() Balance = require(RS:WaitForChild("Balance", 5)) end)
+
 -- ─── CashDrop remote discovery ────────────────────────────────────────────────
 local cashDropNew, cashDropRedeem
 pcall(function()
@@ -116,7 +120,15 @@ CS:GetInstanceAddedSignal("Tycoon.Purchasable"):Connect(suppressAnimations)
 -- Feature Modules — batch every 0.5s, sequential calls (no coroutine flood)
 -- ═══════════════════════════════════════════════════════════════════════════════
 
--- ─── Auto Purchase ────────────────────────────────────────────────────────────
+-- ─── Price helper (cheapest first) ───────────────────────────────────────────
+local function getPrice(name)
+    if Balance and Balance.PurchasePrices then
+        return Balance.PurchasePrices[name] or 999999
+    end
+    return 999999
+end
+
+-- ─── Auto Purchase (sorted cheapest first) ──────────────────────────────────
 do
     local active = false
     task.spawn(function()
@@ -124,12 +136,19 @@ do
             task.wait(0.5)
             if not active then continue end
             pcall(function()
+                local items = {}
                 for _, item in CS:GetTagged("Tycoon.Purchase") do
                     if item:IsDescendantOf(myTycoon)
                         and not item:GetAttribute("Purchased") then
                         local rf = findRemoteFunction(item, "Purchase")
-                        if rf then pcall(rf.InvokeServer, rf, false) end
+                        if rf then
+                            table.insert(items, {rf = rf, price = getPrice(item.Name)})
+                        end
                     end
+                end
+                table.sort(items, function(a, b) return a.price < b.price end)
+                for _, entry in ipairs(items) do
+                    pcall(entry.rf.InvokeServer, entry.rf, false)
                 end
             end)
         end
@@ -142,7 +161,7 @@ do
     }
 end
 
--- ─── Auto Build (decorations, structures) ────────────────────────────────────
+-- ─── Auto Build (decorations, structures — sorted cheapest first) ───────────
 do
     local active = false
     task.spawn(function()
@@ -150,15 +169,22 @@ do
             task.wait(0.5)
             if not active then continue end
             pcall(function()
+                local items = {}
                 for _, item in CS:GetTagged("Tycoon.Purchase") do
                     if item:IsDescendantOf(myTycoon)
                         and not item:GetAttribute("Purchased") then
                         local cat = item:GetAttribute("Category")
                         if cat == nil or cat == "Decoration" or cat == "Structure" then
                             local rf = findRemoteFunction(item, "Purchase")
-                            if rf then pcall(rf.InvokeServer, rf, false) end
+                            if rf then
+                                table.insert(items, {rf = rf, price = getPrice(item.Name)})
+                            end
                         end
                     end
+                end
+                table.sort(items, function(a, b) return a.price < b.price end)
+                for _, entry in ipairs(items) do
+                    pcall(entry.rf.InvokeServer, entry.rf, false)
                 end
             end)
         end
@@ -398,29 +424,10 @@ do
     }
 end
 
--- ─── Anti-AFK ─────────────────────────────────────────────────────────────────
-do
-    local active = false
-    local conn
-    local function setActive(val)
-        active = val
-        if active and not conn then
-            conn = PL.Idled:Connect(function()
-                VirtualUser:ClickButton2(Vector2.new())
-            end)
-        elseif not active and conn then
-            conn:Disconnect()
-            conn = nil
-        end
-    end
-    setActive(true) -- auto-enable
-    _G.SL_AntiAfk = {
-        enable   = function() setActive(true) end,
-        disable  = function() setActive(false) end,
-        toggle   = function(val) if val == nil then setActive(not active) else setActive(val) end end,
-        isActive = function() return active end,
-    }
-end
+-- ─── Anti-AFK (always on) ────────────────────────────────────────────────────
+PL.Idled:Connect(function()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
 
 -- ─── Auto Rebirth (WIP: server handler unresponsive) ─────────────────────────
 do
@@ -524,7 +531,7 @@ local C_BSTR_OFF = Color3.fromRGB(180, 30, 30)
 local W      = 299
 local HALF_W = 141
 local TAB_W  = math.floor(W / 2)
-local PANEL_H_CONTROLS = 279
+local PANEL_H_CONTROLS = 247
 local PANEL_H_PRESTIGE = 211
 
 -- ─── Style helpers ────────────────────────────────────────────────────────────
@@ -776,7 +783,7 @@ mkGrad(tabDiv, C_DIV, Color3.fromRGB(150, 20, 55), 0)
 
 -- ─── Content frames (explicit sizes for child layout) ────────────────────────
 local controlsFrame = Instance.new("Frame", panel)
-controlsFrame.Size = UDim2.new(0, W, 0, 218)
+controlsFrame.Size = UDim2.new(0, W, 0, 186)
 controlsFrame.Position = UDim2.new(0, 0, 0, 61)
 controlsFrame.BackgroundTransparency = 1
 controlsFrame.BorderSizePixel = 0
@@ -797,7 +804,6 @@ CTRL_DEFS = {
     {key = "autoCashDrops",label = "Auto Drops",    getApi = function() return _G.SL_AutoCashDrops end,tip = "Auto-redeems cash drops"},
     {key = "autoPhone",    label = "Auto Phone",    getApi = function() return _G.SL_AutoPhone end,    tip = "Accepts phone offers automatically"},
     {key = "autoPowers",   label = "Auto Powers",   getApi = function() return _G.SL_AutoPowers end,   tip = "Buys affordable power upgrades"},
-    {key = "antiAfk",      label = "Anti-AFK",      getApi = function() return _G.SL_AntiAfk end,      tip = "Prevents idle kick"},
     {key = "autoBuild",    label = "Auto Build",    getApi = function() return _G.SL_AutoBuild end,    tip = "Buys decorations and structures"},
 }
 
@@ -1024,12 +1030,7 @@ local lblAscension = mkStatusLabel(prestigeFrame, "Ascension: --", 120)
 
 -- ─── State restoration ───────────────────────────────────────────────────────
 for _, def in ipairs(CTRL_DEFS) do
-    if def.key == "antiAfk" then
-        if savedState[def.key] == false then
-            local api = def.getApi()
-            if api then pcall(function() api.disable() end) end
-        end
-    elseif savedState[def.key] then
+    if savedState[def.key] then
         local api = def.getApi()
         if api then pcall(function() api.enable() end) end
     end
