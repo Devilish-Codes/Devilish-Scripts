@@ -4,7 +4,6 @@
 
 if _G.SellLemonsMain then return end
 _G.SellLemonsMain = true
-print("[Sell Lemons] Loading...")
 
 -- ─── Services ─────────────────────────────────────────────────────────────────
 local Players       = game:GetService("Players")
@@ -45,11 +44,9 @@ for _ = 1, 60 do
     task.wait(0.5)
 end
 if not myTycoon then
-    print("[Sell Lemons] Could not find your tycoon after 30s.")
     _G.SellLemonsMain = nil
     return
 end
-print("[Sell Lemons] Tycoon found: " .. myTycoon:GetFullName())
 
 -- Wait for Remotes folder (may not exist immediately)
 local ok, result = pcall(function()
@@ -57,9 +54,7 @@ local ok, result = pcall(function()
 end)
 remotes = ok and result or nil
 if remotes then
-    print("[Sell Lemons] Remotes folder found (" .. #remotes:GetChildren() .. " children)")
 else
-    print("[Sell Lemons] WARNING: Remotes folder not found after 10s")
 end
 
 -- Wait for entities to finish replicating (tags, remotes)
@@ -71,9 +66,7 @@ pcall(function() Balance = require(RS:WaitForChild("Balance", 5)) end)
 if Balance and Balance.PurchasePrices then
     local count = 0
     for _ in pairs(Balance.PurchasePrices) do count = count + 1 end
-    print("[Sell Lemons] Balance loaded (" .. count .. " prices)")
 else
-    print("[Sell Lemons] WARNING: Balance not loaded — purchases will NOT be sorted by price")
 end
 
 -- ─── CashDrop remote discovery ────────────────────────────────────────────────
@@ -89,9 +82,7 @@ pcall(function()
     end
 end)
 if cashDropNew then
-    print("[Sell Lemons] CashDrop remotes found")
 else
-    print("[Sell Lemons] CashDrop remotes not found (feature will be unavailable)")
 end
 
 -- ─── Tycoon value reader ─────────────────────────────────────────────────────
@@ -144,29 +135,30 @@ do
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(0.5)
-            if not active then continue end
-            pcall(function()
-                local seen = {}
-                local items = {}
-                for _, tag in ipairs({"Tycoon.Purchase", "Tycoon.Purchasable"}) do
-                    for _, item in CS:GetTagged(tag) do
-                        if item:IsDescendantOf(myTycoon)
-                            and not item:GetAttribute("Purchased")
-                            and not seen[item] then
-                            seen[item] = true
-                            local rf = findRemoteFunction(item, "Purchase")
-                            if rf then
-                                table.insert(items, {rf = rf, price = getPrice(item.Name)})
+            if active then
+                pcall(function()
+                    local seen = {}
+                    local items = {}
+                    for _, tag in ipairs({"Tycoon.Purchase", "Tycoon.Purchasable"}) do
+                        for _, item in CS:GetTagged(tag) do
+                            if item:IsDescendantOf(myTycoon)
+                                and not item:GetAttribute("Purchased")
+                                and not seen[item] then
+                                seen[item] = true
+                                local rf = findRemoteFunction(item, "Purchase")
+                                if rf then
+                                    table.insert(items, {rf = rf, price = getPrice(item.Name)})
+                                end
                             end
                         end
                     end
-                end
-                table.sort(items, function(a, b) return a.price < b.price end)
-                for idx, entry in ipairs(items) do
-                    if idx > 10 then break end
-                    pcall(entry.rf.InvokeServer, entry.rf, false)
-                end
-            end)
+                    table.sort(items, function(a, b) return a.price < b.price end)
+                    for idx, entry in ipairs(items) do
+                        if idx > 10 then break end
+                        pcall(entry.rf.InvokeServer, entry.rf, false)
+                    end
+                end)
+            end
         end
     end)
     _G.SL_AutoPurchase = {
@@ -193,17 +185,19 @@ do
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(0.5)
-            if not active then continue end
-            pcall(function()
-                for _, earner in CS:GetTagged("Tycoon.Earner") do
-                    if earner:IsDescendantOf(myTycoon) then
-                        local eName = earner.Name:gsub("[^%w]", "")
-                        if not enabledBuildings[eName] then continue end
-                        local rf = findRemoteFunction(earner, "Upgrade")
-                        if rf then pcall(rf.InvokeServer, rf, upgradeCount) end
+            if active then
+                pcall(function()
+                    for _, earner in CS:GetTagged("Tycoon.Earner") do
+                        if earner:IsDescendantOf(myTycoon) then
+                            local eName = earner.Name:gsub("[^%w]", "")
+                            if enabledBuildings[eName] then
+                                local rf = findRemoteFunction(earner, "Upgrade")
+                                if rf then pcall(rf.InvokeServer, rf, upgradeCount) end
+                            end
+                        end
                     end
-                end
-            end)
+                end)
+            end
         end
     end)
     _G.SL_AutoUpgrade = {
@@ -224,33 +218,33 @@ do
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(0.5)
-            if not active or not remotes then continue end
-            pcall(function()
-                local wakeRF = findRemoteFunction(remotes, "WakeIncomeStream")
-                if not wakeRF then return end
-                -- Build set of earners with active managers
-                local managed = {}
-                for _, item in CS:GetTagged("Tycoon.Purchase") do
-                    if item:IsDescendantOf(myTycoon) and item:GetAttribute("Purchased") then
-                        local autos = item:GetAttribute("Automatics")
-                        if autos and type(autos) == "string" then
-                            for name in autos:gmatch("[^,]+") do
-                                managed[name:match("^%s*(.-)%s*$"):lower()] = true
+            if active and remotes then
+                pcall(function()
+                    local wakeRF = findRemoteFunction(remotes, "WakeIncomeStream")
+                    if not wakeRF then return end
+                    -- Build set of earners with active managers
+                    local managed = {}
+                    for _, item in CS:GetTagged("Tycoon.Purchase") do
+                        if item:IsDescendantOf(myTycoon) and item:GetAttribute("Purchased") then
+                            local autos = item:GetAttribute("Automatics")
+                            if autos and type(autos) == "string" then
+                                for name in autos:gmatch("[^,]+") do
+                                    managed[name:match("^%s*(.-)%s*$"):lower()] = true
+                                end
                             end
                         end
                     end
-                end
-                for _, earner in CS:GetTagged("Tycoon.Earner") do
-                    if earner:IsDescendantOf(myTycoon) and not managed[earner.Name:lower()] then
-                        pcall(wakeRF.InvokeServer, wakeRF, earner.Name)
-                        -- Also try without spaces (server may use CamelCase key)
-                        local noSpaces = earner.Name:gsub(" ", "")
-                        if noSpaces ~= earner.Name then
-                            pcall(wakeRF.InvokeServer, wakeRF, noSpaces)
+                    for _, earner in CS:GetTagged("Tycoon.Earner") do
+                        if earner:IsDescendantOf(myTycoon) and not managed[earner.Name:lower()] then
+                            pcall(wakeRF.InvokeServer, wakeRF, earner.Name)
+                            local noSpaces = earner.Name:gsub(" ", "")
+                            if noSpaces ~= earner.Name then
+                                pcall(wakeRF.InvokeServer, wakeRF, noSpaces)
+                            end
                         end
                     end
-                end
-            end)
+                end)
+            end
         end
     end)
     _G.SL_AutoWake = {
@@ -267,13 +261,14 @@ do
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(0.5)
-            if not active then continue end
-            pcall(function()
-                for _, vine in CS:GetTagged("CashVine") do
-                    local rf = findRemoteFunction(vine, "Use")
-                    if rf then pcall(rf.InvokeServer, rf) end
-                end
-            end)
+            if active then
+                pcall(function()
+                    for _, vine in CS:GetTagged("CashVine") do
+                        local rf = findRemoteFunction(vine, "Use")
+                        if rf then pcall(rf.InvokeServer, rf) end
+                    end
+                end)
+            end
         end
     end)
     _G.SL_AutoCashVine = {
@@ -308,7 +303,6 @@ do
                     table.insert(pendingDrops, pos)
                 end
             end)
-            print("[Sell Lemons] CashDrop event hooked")
         end
     end
 
@@ -381,10 +375,10 @@ do
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(30)
-            if not active then continue end
-            if not conn then tryHook() end
-            local ok, err = pcall(collectDrops)
-            if not ok then print("[AutoDrop] ERROR: " .. tostring(err)) end
+            if active then
+                if not conn then tryHook() end
+                local ok, err = pcall(collectDrops)
+            end
         end
     end)
 
@@ -402,13 +396,14 @@ do
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(0.5)
-            if not active or not remotes then continue end
-            pcall(function()
-                local re = remotes:FindFirstChild("PhoneOffer")
-                if re and re:IsA("RemoteEvent") then
-                    re:FireServer("Accept")
-                end
-            end)
+            if active and remotes then
+                pcall(function()
+                    local re = remotes:FindFirstChild("PhoneOffer")
+                    if re and re:IsA("RemoteEvent") then
+                        re:FireServer("Accept")
+                    end
+                end)
+            end
         end
     end)
     _G.SL_AutoPhone = {
@@ -426,14 +421,15 @@ do
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(0.5)
-            if not active or not remotes then continue end
-            pcall(function()
-                local rf = findRemoteFunction(remotes, "UpgradePowerLevel")
-                if not rf then return end
-                for _, name in ipairs(POWERS) do
-                    pcall(rf.InvokeServer, rf, name)
-                end
-            end)
+            if active and remotes then
+                pcall(function()
+                    local rf = findRemoteFunction(remotes, "UpgradePowerLevel")
+                    if not rf then return end
+                    for _, name in ipairs(POWERS) do
+                        pcall(rf.InvokeServer, rf, name)
+                    end
+                end)
+            end
         end
     end)
     _G.SL_AutoPowers = {
@@ -467,35 +463,27 @@ do
     end
 
     task.spawn(function()
-        local debugOnce = true
         while _G.SellLemonsMain do
             task.wait(0.5)
-            if not active then continue end
-            local targets = findFruits()
-
-            if debugOnce then
-                debugOnce = false
-                print("[AutoFruit] Found " .. #targets .. " fruit CDs across map")
-            end
-
-            if #targets < FRUIT_THRESHOLD then continue end
-            pcall(function()
-                local char = PL.Character
-                if not char then return end
-                local homePos = char:GetPivot().Position
-                for _, t in ipairs(targets) do
-                    char = PL.Character
-                    if not char then break end
-                    -- frame 1: teleport
-                    char:PivotTo(CFrame.new(t.pos))
-                    task.wait()
-                    -- frame 2: click
-                    pcall(fireclickdetector, t.cd)
-                    task.wait()
+            if active then
+                local targets = findFruits()
+                if #targets >= FRUIT_THRESHOLD then
+                    pcall(function()
+                        local char = PL.Character
+                        if not char then return end
+                        local homePos = char:GetPivot().Position
+                        for _, t in ipairs(targets) do
+                            char = PL.Character
+                            if not char then break end
+                            char:PivotTo(CFrame.new(t.pos))
+                            task.wait()
+                            pcall(fireclickdetector, t.cd)
+                        end
+                        char = PL.Character
+                        if char then char:PivotTo(CFrame.new(homePos)) end
+                    end)
                 end
-                char = PL.Character
-                if char then char:PivotTo(CFrame.new(homePos)) end
-            end)
+            end
         end
     end)
     _G.SL_AutoFruit = {
@@ -520,16 +508,17 @@ do
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(1)
-            if not active or not remotes or inFlight then continue end
-            if tick() - lastAttempt < rebirthCD then continue end
-            local rf = findRemoteFunction(remotes, "Rebirth")
-            if not rf then continue end
-            inFlight = true
-            lastAttempt = tick()
-            task.spawn(function()
-                pcall(rf.InvokeServer, rf)
-                inFlight = false
-            end)
+            if active and remotes and not inFlight and tick() - lastAttempt >= rebirthCD then
+                local rf = findRemoteFunction(remotes, "Rebirth")
+                if rf then
+                    inFlight = true
+                    lastAttempt = tick()
+                    task.spawn(function()
+                        pcall(rf.InvokeServer, rf)
+                        inFlight = false
+                    end)
+                end
+            end
         end
     end)
     _G.SL_AutoRebirth = {
@@ -549,14 +538,16 @@ do
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(0.5)
-            if not active or not remotes or inFlight then continue end
-            local rf = findRemoteFunction(remotes, "Evolve")
-            if not rf then continue end
-            inFlight = true
-            task.spawn(function()
-                pcall(rf.InvokeServer, rf)
-                inFlight = false
-            end)
+            if active and remotes and not inFlight then
+                local rf = findRemoteFunction(remotes, "Evolve")
+                if rf then
+                    inFlight = true
+                    task.spawn(function()
+                        pcall(rf.InvokeServer, rf)
+                        inFlight = false
+                    end)
+                end
+            end
         end
     end)
     _G.SL_AutoEvolve = {
@@ -574,14 +565,16 @@ do
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(0.5)
-            if not active or not remotes or inFlight then continue end
-            local rf = findRemoteFunction(remotes, "Ascend")
-            if not rf then continue end
-            inFlight = true
-            task.spawn(function()
-                pcall(rf.InvokeServer, rf)
-                inFlight = false
-            end)
+            if active and remotes and not inFlight then
+                local rf = findRemoteFunction(remotes, "Ascend")
+                if rf then
+                    inFlight = true
+                    task.spawn(function()
+                        pcall(rf.InvokeServer, rf)
+                        inFlight = false
+                    end)
+                end
+            end
         end
     end)
     _G.SL_AutoAscend = {
@@ -1266,4 +1259,3 @@ task.spawn(function()
     end
 end)
 
-print("[Sell Lemons] Loaded successfully.")
