@@ -230,13 +230,17 @@ end
 -- ─── Auto Wake ────────────────────────────────────────────────────────────────
 do
     local active = false
+    local debugOnce = true
     task.spawn(function()
         while _G.SellLemonsMain do
             task.wait(0.5)
             if not active or not remotes then continue end
             pcall(function()
                 local wakeRF = findRemoteFunction(remotes, "WakeIncomeStream")
-                if not wakeRF then return end
+                if not wakeRF then
+                    if debugOnce then debugOnce = false; print("[AutoWake] WakeIncomeStream RF not found") end
+                    return
+                end
                 -- Build set of earners with active managers
                 local managed = {}
                 for _, item in CS:GetTagged("Tycoon.Purchase") do
@@ -248,6 +252,20 @@ do
                             end
                         end
                     end
+                end
+                if debugOnce then
+                    debugOnce = false
+                    local managedList = {}
+                    for k in pairs(managed) do table.insert(managedList, k) end
+                    print("[AutoWake] Managed earners: " .. (next(managed) and table.concat(managedList, ", ") or "none"))
+                    local earnerNames = {}
+                    for _, earner in CS:GetTagged("Tycoon.Earner") do
+                        if earner:IsDescendantOf(myTycoon) then
+                            local skip = managed[earner.Name:lower()] and " (SKIPPED-managed)" or ""
+                            table.insert(earnerNames, earner.Name .. skip)
+                        end
+                    end
+                    print("[AutoWake] Earners found: " .. table.concat(earnerNames, ", "))
                 end
                 for _, earner in CS:GetTagged("Tycoon.Earner") do
                     if earner:IsDescendantOf(myTycoon) and not managed[earner.Name:lower()] then
