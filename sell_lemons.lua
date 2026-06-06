@@ -373,9 +373,7 @@ do
         for _, pos in ipairs(drops) do
             char = PL.Character
             if not char then break end
-            local off = Vector3.new(math.random() - 0.5, 0, math.random() - 0.5) * 2
-            char:PivotTo(CFrame.new(pos + off))
-            task.wait(0.3)
+            char:PivotTo(CFrame.new(pos))
         end
 
         -- TP back home
