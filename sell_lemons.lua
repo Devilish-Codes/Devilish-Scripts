@@ -427,7 +427,8 @@ do
             task.wait(30)
             if not active then continue end
             if not conn then tryHook() end
-            pcall(collectDrops)
+            local ok, err = pcall(collectDrops)
+            if not ok then print("[AutoDrop] ERROR: " .. tostring(err)) end
         end
     end)
 
