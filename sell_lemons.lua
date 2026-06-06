@@ -444,43 +444,57 @@ do
     }
 end
 
--- ─── Auto Fruit (TP to each earner, click fruit, TP back) ──────────────────
+-- ─── Auto Fruit (TP to fruit CDs across entire map) ─────────────────────────
 do
     local active = false
+    local FRUIT_THRESHOLD = 10
+
+    local function findFruits()
+        local targets = {}
+        pcall(function()
+            for _, desc in workspace:GetDescendants() do
+                if desc:IsA("ClickDetector") then
+                    local part = desc.Parent
+                    if part and part:IsA("BasePart") then
+                        if not part:FindFirstChildWhichIsA("TextLabel", true) then
+                            table.insert(targets, {pos = part.Position, cd = desc})
+                        end
+                    end
+                end
+            end
+        end)
+        return targets
+    end
+
     task.spawn(function()
+        local debugOnce = true
         while _G.SellLemonsMain do
             task.wait(0.5)
             if not active then continue end
+            local targets = findFruits()
+
+            if debugOnce then
+                debugOnce = false
+                print("[AutoFruit] Found " .. #targets .. " fruit CDs across map")
+            end
+
+            if #targets < FRUIT_THRESHOLD then continue end
             pcall(function()
                 local char = PL.Character
                 if not char then return end
                 local homePos = char:GetPivot().Position
-
-                for _, earner in CS:GetTagged("Tycoon.Earner") do
-                    if earner:IsDescendantOf(myTycoon) then
-                        char = PL.Character
-                        if not char then break end
-                        -- TP to earner
-                        local pos = earner:IsA("BasePart") and earner.Position
-                            or earner:IsA("Model") and earner:GetPivot().Position
-                            or nil
-                        if pos then
-                            char:PivotTo(CFrame.new(pos))
-                            task.wait()
-                        end
-                        -- Fire click/prompt
-                        local cd = earner:FindFirstChildWhichIsA("ClickDetector", true)
-                        if cd then pcall(fireclickdetector, cd) end
-                        local pp = earner:FindFirstChildWhichIsA("ProximityPrompt", true)
-                        if pp then pcall(fireproximityprompt, pp) end
-                    end
+                for _, t in ipairs(targets) do
+                    char = PL.Character
+                    if not char then break end
+                    -- frame 1: teleport
+                    char:PivotTo(CFrame.new(t.pos))
+                    task.wait()
+                    -- frame 2: click
+                    pcall(fireclickdetector, t.cd)
+                    task.wait()
                 end
-
-                -- TP back home
                 char = PL.Character
-                if char then
-                    char:PivotTo(CFrame.new(homePos))
-                end
+                if char then char:PivotTo(CFrame.new(homePos)) end
             end)
         end
     end)
@@ -497,17 +511,21 @@ PL.Idled:Connect(function()
     VirtualUser:ClickButton2(Vector2.new())
 end)
 
--- ─── Auto Rebirth (WIP: server handler unresponsive) ─────────────────────────
+-- ─── Auto Rebirth (2-min cooldown between attempts) ─────────────────────────
 do
     local active = false
     local inFlight = false
+    local REBIRTH_CD = 120 -- 2 minutes
+    local lastAttempt = tick() - REBIRTH_CD -- fire immediately on first enable
     task.spawn(function()
         while _G.SellLemonsMain do
-            task.wait(0.5)
+            task.wait(1)
             if not active or not remotes or inFlight then continue end
+            if tick() - lastAttempt < REBIRTH_CD then continue end
             local rf = findRemoteFunction(remotes, "Rebirth")
             if not rf then continue end
             inFlight = true
+            lastAttempt = tick()
             task.spawn(function()
                 pcall(rf.InvokeServer, rf)
                 inFlight = false
