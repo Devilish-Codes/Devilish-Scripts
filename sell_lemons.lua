@@ -386,6 +386,7 @@ do
             char = PL.Character
             if not char then break end
             char:PivotTo(CFrame.new(pos))
+            task.wait() -- one frame for Touched to fire
         end
 
         -- TP back home
