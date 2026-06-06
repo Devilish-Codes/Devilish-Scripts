@@ -444,7 +444,7 @@ do
     }
 end
 
--- ─── Auto Fruit (click fruit on earner trees) ───────────────────────────────
+-- ─── Auto Fruit (TP to each earner, click fruit, TP back) ──────────────────
 do
     local active = false
     task.spawn(function()
@@ -452,17 +452,34 @@ do
             task.wait(0.5)
             if not active then continue end
             pcall(function()
+                local char = PL.Character
+                if not char then return end
+                local homePos = char:GetPivot().Position
+
                 for _, earner in CS:GetTagged("Tycoon.Earner") do
                     if earner:IsDescendantOf(myTycoon) then
+                        char = PL.Character
+                        if not char then break end
+                        -- TP to earner
+                        local pos = earner:IsA("BasePart") and earner.Position
+                            or earner:IsA("Model") and earner:GetPivot().Position
+                            or nil
+                        if pos then
+                            char:PivotTo(CFrame.new(pos))
+                            task.wait()
+                        end
+                        -- Fire click/prompt
                         local cd = earner:FindFirstChildWhichIsA("ClickDetector", true)
-                        if cd then
-                            pcall(fireclickdetector, cd)
-                        end
+                        if cd then pcall(fireclickdetector, cd) end
                         local pp = earner:FindFirstChildWhichIsA("ProximityPrompt", true)
-                        if pp then
-                            pcall(fireproximityprompt, pp)
-                        end
+                        if pp then pcall(fireproximityprompt, pp) end
                     end
+                end
+
+                -- TP back home
+                char = PL.Character
+                if char then
+                    char:PivotTo(CFrame.new(homePos))
                 end
             end)
         end
