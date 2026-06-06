@@ -381,18 +381,34 @@ do
 
         if #drops == 0 then return end
         print("[AutoDrop] Collecting " .. #drops .. " drops")
+        -- Debug: print first 3 positions
+        for i = 1, math.min(3, #drops) do
+            print("[AutoDrop] Drop " .. i .. " pos: " .. tostring(drops[i]))
+        end
+        print("[AutoDrop] Home pos: " .. tostring(homePos))
+        print("[AutoDrop] Char exists: " .. tostring(char ~= nil))
 
+        local collected = 0
         for _, pos in ipairs(drops) do
             char = PL.Character
-            if not char then break end
-            char:PivotTo(CFrame.new(pos))
-            task.wait() -- one frame for Touched to fire
+            if not char then print("[AutoDrop] No character, stopping"); break end
+            local ok, err = pcall(function()
+                char:PivotTo(CFrame.new(pos))
+            end)
+            if not ok then
+                print("[AutoDrop] PivotTo failed: " .. tostring(err))
+                break
+            end
+            collected = collected + 1
+            task.wait()
         end
+        print("[AutoDrop] TP'd to " .. collected .. "/" .. #drops .. " drops")
 
         -- TP back home
         char = PL.Character
         if char then
             char:PivotTo(CFrame.new(homePos))
+            print("[AutoDrop] Returned home")
         end
     end
 
