@@ -128,7 +128,7 @@ local function getPrice(name)
     return 999999
 end
 
--- ─── Auto Purchase (both tags, sorted cheapest first) ───────────────────────
+-- ─── Auto Purchase (both tags, sorted cheapest first, 10 per tick) ──────────
 do
     local active = false
     task.spawn(function()
@@ -152,7 +152,9 @@ do
                     end
                 end
                 table.sort(items, function(a, b) return a.price < b.price end)
-                for _, entry in ipairs(items) do
+                -- Buy cheapest 10 per tick to avoid blocking on 400+ items
+                for idx, entry in ipairs(items) do
+                    if idx > 10 then break end
                     pcall(entry.rf.InvokeServer, entry.rf, false)
                 end
             end)
@@ -188,19 +190,8 @@ do
                     if earner:IsDescendantOf(myTycoon) then
                         local eName = earner.Name:gsub("[^%w]", "")
                         if not enabledBuildings[eName] then continue end
-                        local p = earner.Parent
-                        local enabled = false
-                        while p and p ~= myTycoon do
-                            if p:GetAttribute("Enabled") == true then
-                                enabled = true
-                                break
-                            end
-                            p = p.Parent
-                        end
-                        if enabled then
-                            local rf = findRemoteFunction(earner, "Upgrade")
-                            if rf then pcall(rf.InvokeServer, rf, upgradeCount) end
-                        end
+                        local rf = findRemoteFunction(earner, "Upgrade")
+                        if rf then pcall(rf.InvokeServer, rf, upgradeCount) end
                     end
                 end
             end)
@@ -242,18 +233,7 @@ do
                 end
                 for _, earner in CS:GetTagged("Tycoon.Earner") do
                     if earner:IsDescendantOf(myTycoon) and not managed[earner.Name:lower()] then
-                        local p = earner.Parent
-                        local enabled = false
-                        while p and p ~= myTycoon do
-                            if p:GetAttribute("Enabled") == true then
-                                enabled = true
-                                break
-                            end
-                            p = p.Parent
-                        end
-                        if enabled then
-                            pcall(wakeRF.InvokeServer, wakeRF, earner.Name)
-                        end
+                        pcall(wakeRF.InvokeServer, wakeRF, earner.Name)
                     end
                 end
             end)
@@ -500,7 +480,7 @@ local C_BSTR_OFF = Color3.fromRGB(180, 30, 30)
 local W      = 299
 local HALF_W = 141
 local TAB_W  = math.floor(W / 2)
-local PANEL_H_CONTROLS = 247
+local PANEL_H_CONTROLS = 253
 local PANEL_H_PRESTIGE = 211
 
 -- ─── Style helpers ────────────────────────────────────────────────────────────
@@ -752,7 +732,7 @@ mkGrad(tabDiv, C_DIV, Color3.fromRGB(150, 20, 55), 0)
 
 -- ─── Content frames (explicit sizes for child layout) ────────────────────────
 local controlsFrame = Instance.new("Frame", panel)
-controlsFrame.Size = UDim2.new(0, W, 0, 186)
+controlsFrame.Size = UDim2.new(0, W, 0, 192)
 controlsFrame.Position = UDim2.new(0, 0, 0, 61)
 controlsFrame.BackgroundTransparency = 1
 controlsFrame.BorderSizePixel = 0
