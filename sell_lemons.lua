@@ -128,7 +128,7 @@ local function getPrice(name)
     return 999999
 end
 
--- ─── Auto Purchase (sorted cheapest first) ──────────────────────────────────
+-- ─── Auto Purchase (both tags, sorted cheapest first) ───────────────────────
 do
     local active = false
     task.spawn(function()
@@ -136,13 +136,18 @@ do
             task.wait(0.5)
             if not active then continue end
             pcall(function()
+                local seen = {}
                 local items = {}
-                for _, item in CS:GetTagged("Tycoon.Purchase") do
-                    if item:IsDescendantOf(myTycoon)
-                        and not item:GetAttribute("Purchased") then
-                        local rf = findRemoteFunction(item, "Purchase")
-                        if rf then
-                            table.insert(items, {rf = rf, price = getPrice(item.Name)})
+                for _, tag in ipairs({"Tycoon.Purchase", "Tycoon.Purchasable"}) do
+                    for _, item in CS:GetTagged(tag) do
+                        if item:IsDescendantOf(myTycoon)
+                            and not item:GetAttribute("Purchased")
+                            and not seen[item] then
+                            seen[item] = true
+                            local rf = findRemoteFunction(item, "Purchase")
+                            if rf then
+                                table.insert(items, {rf = rf, price = getPrice(item.Name)})
+                            end
                         end
                     end
                 end
@@ -154,48 +159,6 @@ do
         end
     end)
     _G.SL_AutoPurchase = {
-        enable   = function() active = true end,
-        disable  = function() active = false end,
-        toggle   = function(val) if val == nil then active = not active else active = val end end,
-        isActive = function() return active end,
-    }
-end
-
--- ─── Auto Build (all non-earner purchases — sorted cheapest first) ──────────
-do
-    local active = false
-    task.spawn(function()
-        while _G.SellLemonsMain do
-            task.wait(0.5)
-            if not active then continue end
-            pcall(function()
-                local items = {}
-                for _, item in CS:GetTagged("Tycoon.Purchasable") do
-                    if item:IsDescendantOf(myTycoon)
-                        and not item:GetAttribute("Purchased") then
-                        local rf = findRemoteFunction(item, "Purchase")
-                        if rf then
-                            table.insert(items, {rf = rf, price = getPrice(item.Name)})
-                        end
-                    end
-                end
-                for _, item in CS:GetTagged("Tycoon.Purchase") do
-                    if item:IsDescendantOf(myTycoon)
-                        and not item:GetAttribute("Purchased") then
-                        local rf = findRemoteFunction(item, "Purchase")
-                        if rf then
-                            table.insert(items, {rf = rf, price = getPrice(item.Name)})
-                        end
-                    end
-                end
-                table.sort(items, function(a, b) return a.price < b.price end)
-                for _, entry in ipairs(items) do
-                    pcall(entry.rf.InvokeServer, entry.rf, false)
-                end
-            end)
-        end
-    end)
-    _G.SL_AutoBuild = {
         enable   = function() active = true end,
         disable  = function() active = false end,
         toggle   = function(val) if val == nil then active = not active else active = val end end,
@@ -537,7 +500,7 @@ local C_BSTR_OFF = Color3.fromRGB(180, 30, 30)
 local W      = 299
 local HALF_W = 141
 local TAB_W  = math.floor(W / 2)
-local PANEL_H_CONTROLS = 247
+local PANEL_H_CONTROLS = 215
 local PANEL_H_PRESTIGE = 211
 
 -- ─── Style helpers ────────────────────────────────────────────────────────────
@@ -789,7 +752,7 @@ mkGrad(tabDiv, C_DIV, Color3.fromRGB(150, 20, 55), 0)
 
 -- ─── Content frames (explicit sizes for child layout) ────────────────────────
 local controlsFrame = Instance.new("Frame", panel)
-controlsFrame.Size = UDim2.new(0, W, 0, 186)
+controlsFrame.Size = UDim2.new(0, W, 0, 154)
 controlsFrame.Position = UDim2.new(0, 0, 0, 61)
 controlsFrame.BackgroundTransparency = 1
 controlsFrame.BorderSizePixel = 0
@@ -810,7 +773,6 @@ CTRL_DEFS = {
     {key = "autoCashDrops",label = "Auto Drops",    getApi = function() return _G.SL_AutoCashDrops end,tip = "Auto-redeems cash drops"},
     {key = "autoPhone",    label = "Auto Phone",    getApi = function() return _G.SL_AutoPhone end,    tip = "Accepts phone offers automatically"},
     {key = "autoPowers",   label = "Auto Powers",   getApi = function() return _G.SL_AutoPowers end,   tip = "Buys affordable power upgrades"},
-    {key = "autoBuild",    label = "Auto Build",    getApi = function() return _G.SL_AutoBuild end,    tip = "Buys decorations and structures"},
 }
 
 PRESTIGE_DEFS = {
