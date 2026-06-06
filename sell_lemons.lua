@@ -339,14 +339,25 @@ do
         end
     end
 
-    -- Scan workspace for CashDrop parts (Bag child = cash drop indicator)
+    -- Scan workspace for all CashDrop parts
     local function findDropParts()
         local positions = {}
+        local seen = {}
         pcall(function()
             for _, desc in workspace:GetDescendants() do
-                if desc.Name == "Bag" and desc:IsA("BasePart")
-                    and desc.Parent and desc.Parent:IsA("BasePart")
-                    and desc.Parent.CollisionGroup == "CharactersOnly" then
+                -- Match by name "CashDrop" with a "Bag" child
+                if desc.Name == "CashDrop" and desc:IsA("BasePart") and not seen[desc] then
+                    seen[desc] = true
+                    local bag = desc:FindFirstChild("Bag")
+                    if bag then
+                        table.insert(positions, bag.Position)
+                    else
+                        table.insert(positions, desc.Position)
+                    end
+                -- Also match any Bag part inside CharactersOnly collision group
+                elseif desc.Name == "Bag" and desc:IsA("BasePart")
+                    and desc.Parent and not seen[desc.Parent] then
+                    seen[desc.Parent] = true
                     table.insert(positions, desc.Position)
                 end
             end
@@ -369,6 +380,7 @@ do
         pendingDrops = {}
 
         if #drops == 0 then return end
+        print("[AutoDrop] Collecting " .. #drops .. " drops")
 
         for _, pos in ipairs(drops) do
             char = PL.Character
