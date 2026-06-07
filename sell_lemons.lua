@@ -33,7 +33,7 @@ local savedState = loadState()
 -- ─── Tycoon discovery ─────────────────────────────────────────────────────────
 local myTycoon, remotes
 for _ = 1, 60 do
-    for _, tycoon in CS:GetTagged("Tycoon") do
+    for _, tycoon in ipairs(CS:GetTagged("Tycoon")) do
         local owner = tycoon:FindFirstChild("Owner")
         if owner and owner:IsA("ObjectValue") and owner.Value == PL then
             myTycoon = tycoon
@@ -53,9 +53,6 @@ local ok, result = pcall(function()
     return myTycoon:WaitForChild("Remotes", 10)
 end)
 remotes = ok and result or nil
-if remotes then
-else
-end
 
 -- Wait for entities to finish replicating (tags, remotes)
 task.wait(3)
@@ -66,13 +63,12 @@ pcall(function() Balance = require(RS:WaitForChild("Balance", 5)) end)
 if Balance and Balance.PurchasePrices then
     local count = 0
     for _ in pairs(Balance.PurchasePrices) do count = count + 1 end
-else
 end
 
 -- ─── CashDrop remote discovery ────────────────────────────────────────────────
 local cashDropNew, cashDropRedeem
 pcall(function()
-    for _, v in RS:GetDescendants() do
+    for _, v in ipairs(RS:GetDescendants()) do
         if v.Name == "CashDropService.New" and v:IsA("RemoteEvent") then
             cashDropNew = v
         elseif v.Name == "CashDropService.Redeem" and v:IsA("RemoteFunction") then
@@ -81,9 +77,6 @@ pcall(function()
         if cashDropNew and cashDropRedeem then break end
     end
 end)
-if cashDropNew then
-else
-end
 
 -- ─── Tycoon value reader ─────────────────────────────────────────────────────
 local function getTycoonValue(name)
@@ -93,29 +86,91 @@ local function getTycoonValue(name)
     return inst and inst.Value or nil
 end
 
--- ─── Remote finder (checks IsA to avoid non-remote children with same name) ──
+-- ─── Cash reader (game stores cash as log₁₀ attribute on Values) ────────────
+local function getCash()
+    local vals = myTycoon:FindFirstChild("Values")
+    if not vals then return 0 end
+    local raw = vals:GetAttribute("Cash")
+    if raw == nil then return 0 end
+    local log10val = tonumber(tostring(raw))
+    if not log10val then return 0 end
+    if log10val == 0 then return 0 end
+    return 10 ^ log10val
+end
+
+-- ─── Remote finder (direct child first, then recursive fallback) ────────────
 local function findRemoteFunction(parent, name)
-    for _, child in parent:GetChildren() do
+    for _, child in ipairs(parent:GetChildren()) do
         if child.Name == name and child:IsA("RemoteFunction") then
             return child
         end
     end
+    local found = parent:FindFirstChild(name, true)
+    if found and found:IsA("RemoteFunction") then return found end
     return nil
 end
 
--- ─── Suppress purchase animations (prevents lag spikes) ─────────────────────
-local function suppressAnimations(inst)
-    if inst:IsDescendantOf(myTycoon) then
-        pcall(function() inst:SetAttribute("DisableReveal", true) end)
-    end
+-- ─── Suppress ALL purchase/build animations (all tycoons, all players) ──────
+local TweenService = game:GetService("TweenService")
+
+local function killDesc(desc)
+    pcall(function()
+        if desc:IsA("BasePart") or desc:IsA("MeshPart") or desc:IsA("UnionOperation") then
+            desc.Transparency = 0
+            desc:SetAttribute("DisableReveal", true)
+        end
+        if desc:IsA("ParticleEmitter") or desc:IsA("Beam") or desc:IsA("Trail") then
+            desc.Enabled = false
+        end
+        if desc:IsA("Sound") then
+            desc:Stop()
+            desc.Volume = 0
+        end
+    end)
 end
-for _, item in CS:GetTagged("Tycoon.Purchase") do suppressAnimations(item) end
-for _, item in CS:GetTagged("Tycoon.Purchasable") do suppressAnimations(item) end
-CS:GetInstanceAddedSignal("Tycoon.Purchase"):Connect(suppressAnimations)
-CS:GetInstanceAddedSignal("Tycoon.Purchasable"):Connect(suppressAnimations)
+
+local function forceVisible(inst)
+    pcall(function()
+        for _, desc in ipairs(inst:GetDescendants()) do
+            killDesc(desc)
+        end
+    end)
+end
+
+local function watchPurchased(item)
+    pcall(function() item:SetAttribute("DisableReveal", true) end)
+    pcall(function()
+        item:GetAttributeChangedSignal("Purchased"):Connect(function()
+            if item:GetAttribute("Purchased") then
+                forceVisible(item)
+                for i = 1, 10 do
+                    task.delay(i * 0.1, function() forceVisible(item) end)
+                end
+            end
+        end)
+    end)
+end
+
+for _, tag in ipairs({"Tycoon.Purchase", "Tycoon.Purchasable", "Tycoon.Earner"}) do
+    for _, item in ipairs(CS:GetTagged(tag)) do watchPurchased(item) end
+    CS:GetInstanceAddedSignal(tag):Connect(watchPurchased)
+end
+
+local function hookTycoonDescendants(tycoon)
+    tycoon.DescendantAdded:Connect(function(desc)
+        killDesc(desc)
+        -- Counteract tweens that start after the part is added
+        task.defer(function() killDesc(desc) end)
+        task.delay(0.1, function() killDesc(desc) end)
+    end)
+    -- Force everything already in the tycoon visible
+    forceVisible(tycoon)
+end
+for _, tycoon in ipairs(CS:GetTagged("Tycoon")) do hookTycoonDescendants(tycoon) end
+CS:GetInstanceAddedSignal("Tycoon"):Connect(hookTycoonDescendants)
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- Feature Modules — batch every 0.5s, sequential calls (no coroutine flood)
+-- Feature Modules — single master loop, each feature in its own do..end block
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 -- ─── Price helper (cheapest first) ───────────────────────────────────────────
@@ -129,36 +184,63 @@ local function getPrice(name)
     return 999999
 end
 
--- ─── Auto Purchase (both tags, sorted cheapest first, 10 per tick) ──────────
+-- ─── Shared constants (used by GUI) ────────────────────────────────────────
+local ALL_BUILDINGS = {"LemonStand","LemonDash","LemonDepot","LemonTrading","LemonLabs","LemonRobotics","LemonRepublic","LemonX"}
+local BUILDING_LABELS = {
+    LemonStand="Lemon Stand", LemonDash="Lemon Dash", LemonDepot="Lemon Depot",
+    LemonTrading="Lemon Trading", LemonLabs="Lemon Labs", LemonRobotics="Lemon Robotics",
+    LemonRepublic="Lemon Republic", LemonX="Lemon X",
+}
+
+
+-- ─── Anti-AFK (always on) ────────────────────────────────────────────────────
+PL.Idled:Connect(function()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
+
+-- ─── Shared flags (cross-feature communication) ────────────────────────────
+local forcePurchaseUntil = 0
+
+-- ─── Feature tick registry (single loop calls these) ────────────────────────
+local featureTicks = {}
+
+-- ─── Auto Purchase (own loop — InvokeServer yields, can't be in master loop)
 do
     local active = false
     task.spawn(function()
         while _G.SellLemonsMain do
-            task.wait(0.5)
             if active then
                 pcall(function()
+                    local cash = getCash()
                     local seen = {}
                     local items = {}
+                    local earners = {}
+                    for _, e in ipairs(CS:GetTagged("Tycoon.Earner")) do
+                        if e:IsDescendantOf(myTycoon) then earners[e] = true end
+                    end
                     for _, tag in ipairs({"Tycoon.Purchase", "Tycoon.Purchasable"}) do
-                        for _, item in CS:GetTagged(tag) do
+                        for _, item in ipairs(CS:GetTagged(tag)) do
                             if item:IsDescendantOf(myTycoon)
                                 and not item:GetAttribute("Purchased")
                                 and not seen[item] then
                                 seen[item] = true
                                 local rf = findRemoteFunction(item, "Purchase")
                                 if rf then
-                                    table.insert(items, {rf = rf, price = getPrice(item.Name)})
+                                    local isEarnerUpgrade = false
+                                    for e in pairs(earners) do
+                                        if item:IsDescendantOf(e) then isEarnerUpgrade = true break end
+                                    end
+                                    table.insert(items, {rf = rf, price = getPrice(item.Name), prio = isEarnerUpgrade and 1 or 0})
                                 end
                             end
                         end
                     end
-                    table.sort(items, function(a, b) return a.price < b.price end)
-                    for idx, entry in ipairs(items) do
-                        if idx > 10 then break end
-                        pcall(entry.rf.InvokeServer, entry.rf, false)
+                    for _, entry in ipairs(items) do
+                        task.spawn(pcall, entry.rf.InvokeServer, entry.rf, false)
                     end
                 end)
             end
+            task.wait(0.2)
         end
     end)
     _G.SL_AutoPurchase = {
@@ -169,35 +251,23 @@ do
     }
 end
 
--- ─── Auto Upgrade ─────────────────────────────────────────────────────────────
-local ALL_BUILDINGS = {"LemonStand","LemonDash","LemonDepot","LemonTrading","LemonLabs","LemonRobotics","LemonRepublic","LemonX"}
-local BUILDING_LABELS = {
-    LemonStand="Lemon Stand", LemonDash="Lemon Dash", LemonDepot="Lemon Depot",
-    LemonTrading="Lemon Trading", LemonLabs="Lemon Labs", LemonRobotics="Lemon Robotics",
-    LemonRepublic="Lemon Republic", LemonX="Lemon X",
-}
+-- ─── Auto Upgrade (own loop — InvokeServer yields) ─────────────────────────
 do
     local active = false
     local upgradeCount = 1
-    local enabledBuildings = {}
-    for _, name in ipairs(ALL_BUILDINGS) do enabledBuildings[name] = true end
-
     task.spawn(function()
         while _G.SellLemonsMain do
-            task.wait(0.5)
             if active then
                 pcall(function()
-                    for _, earner in CS:GetTagged("Tycoon.Earner") do
+                    for _, earner in ipairs(CS:GetTagged("Tycoon.Earner")) do
                         if earner:IsDescendantOf(myTycoon) then
-                            local eName = earner.Name:gsub("[^%w]", "")
-                            if enabledBuildings[eName] then
-                                local rf = findRemoteFunction(earner, "Upgrade")
-                                if rf then pcall(rf.InvokeServer, rf, upgradeCount) end
-                            end
+                            local rf = findRemoteFunction(earner, "Upgrade")
+                            if rf then task.spawn(pcall, rf.InvokeServer, rf, upgradeCount) end
                         end
                     end
                 end)
             end
+            task.wait(1)
         end
     end)
     _G.SL_AutoUpgrade = {
@@ -207,44 +277,36 @@ do
         isActive = function() return active end,
         setCount = function(n) upgradeCount = n end,
         getCount = function() return upgradeCount end,
-        setBuilding = function(name, val) enabledBuildings[name] = val end,
-        getBuildings = function() return enabledBuildings end,
     }
 end
 
--- ─── Auto Wake ────────────────────────────────────────────────────────────────
+-- ─── Auto Wake (own loop — InvokeServer yields) ───────────────────────────
 do
     local active = false
+    local cachedWakeRF = nil
     task.spawn(function()
         while _G.SellLemonsMain do
-            task.wait(0.5)
             if active and remotes then
-                pcall(function()
-                    local wakeRF = findRemoteFunction(remotes, "WakeIncomeStream")
-                    if not wakeRF then return end
-                    -- Build set of earners with active managers
-                    local managed = {}
-                    for _, item in CS:GetTagged("Tycoon.Purchase") do
-                        if item:IsDescendantOf(myTycoon) and item:GetAttribute("Purchased") then
-                            local autos = item:GetAttribute("Automatics")
-                            if autos and type(autos) == "string" then
-                                for name in autos:gmatch("[^,]+") do
-                                    managed[name:match("^%s*(.-)%s*$"):lower()] = true
-                                end
+                if not cachedWakeRF then
+                    cachedWakeRF = findRemoteFunction(remotes, "WakeIncomeStream")
+                    if not cachedWakeRF then
+                        pcall(function()
+                            cachedWakeRF = remotes:WaitForChild("WakeIncomeStream", 5)
+                        end)
+                    end
+                end
+                if cachedWakeRF then
+                    pcall(function()
+                        for _, earner in ipairs(CS:GetTagged("Tycoon.Earner")) do
+                            if earner:IsDescendantOf(myTycoon) then
+                                local alphaName = earner.Name:gsub("%W", "")
+                                task.spawn(pcall, cachedWakeRF.InvokeServer, cachedWakeRF, alphaName)
                             end
                         end
-                    end
-                    for _, earner in CS:GetTagged("Tycoon.Earner") do
-                        if earner:IsDescendantOf(myTycoon) and not managed[earner.Name:lower()] then
-                            pcall(wakeRF.InvokeServer, wakeRF, earner.Name)
-                            local noSpaces = earner.Name:gsub(" ", "")
-                            if noSpaces ~= earner.Name then
-                                pcall(wakeRF.InvokeServer, wakeRF, noSpaces)
-                            end
-                        end
-                    end
-                end)
+                    end)
+                end
             end
+            task.wait(3)
         end
     end)
     _G.SL_AutoWake = {
@@ -255,21 +317,19 @@ do
     }
 end
 
--- ─── Auto CashVine ────────────────────────────────────────────────────────────
+-- ─── Auto CashVine ──────────────────────────────────────────────────────────
 do
     local active = false
-    task.spawn(function()
-        while _G.SellLemonsMain do
-            task.wait(0.5)
-            if active then
-                pcall(function()
-                    for _, vine in CS:GetTagged("CashVine") do
-                        local rf = findRemoteFunction(vine, "Use")
-                        if rf then pcall(rf.InvokeServer, rf) end
-                    end
-                end)
+    local lastRun = 0
+    table.insert(featureTicks, function(now)
+        if not active or now - lastRun < 10 then return end
+        lastRun = now
+        pcall(function()
+            for _, vine in ipairs(CS:GetTagged("CashVine")) do
+                local rf = findRemoteFunction(vine, "Use")
+                if rf then pcall(rf.InvokeServer, rf) end
             end
-        end
+        end)
     end)
     _G.SL_AutoCashVine = {
         enable   = function() active = true end,
@@ -279,26 +339,27 @@ do
     }
 end
 
--- ─── Auto Cash Drops (TP to each drop, touch to collect, TP back) ───────────
+-- ─── Auto Cash Drops ────────────────────────────────────────────────────────
 do
     local active = false
-    local conn
+    local cashDropConn
     local pendingDrops = {}
+    local lastRun = 0
 
-    -- Hook the New event to capture drop positions as they arrive
-    local function tryHook()
-        if conn then return end
+    local function tryHookCashDrop()
+        if cashDropConn then return end
         if not cashDropNew then
             pcall(function()
-                for _, v in RS:GetDescendants() do
+                for _, v in ipairs(RS:GetDescendants()) do
                     if v.Name == "CashDropService.New" and v:IsA("RemoteEvent") then
-                        cashDropNew = v; break
+                        cashDropNew = v
+                        break
                     end
                 end
             end)
         end
         if cashDropNew then
-            conn = cashDropNew.OnClientEvent:Connect(function(dropId, lifetime, pos)
+            cashDropConn = cashDropNew.OnClientEvent:Connect(function(dropId, lifetime, pos)
                 if active and pos then
                     table.insert(pendingDrops, pos)
                 end
@@ -306,105 +367,68 @@ do
         end
     end
 
-    -- Scan workspace for all CashDrop parts
-    local function findDropParts()
-        local positions = {}
-        local seen = {}
-        pcall(function()
-            for _, desc in workspace:GetDescendants() do
-                -- Match by name "CashDrop" with a "Bag" child
-                if desc.Name == "CashDrop" and desc:IsA("BasePart") and not seen[desc] then
-                    seen[desc] = true
-                    local bag = desc:FindFirstChild("Bag")
-                    if bag then
-                        table.insert(positions, bag.Position)
-                    else
-                        table.insert(positions, desc.Position)
-                    end
-                -- Also match any Bag part inside CharactersOnly collision group
-                elseif desc.Name == "Bag" and desc:IsA("BasePart")
-                    and desc.Parent and not seen[desc.Parent] then
-                    seen[desc.Parent] = true
-                    table.insert(positions, desc.Position)
-                end
-            end
-        end)
-        return positions
-    end
-
-    -- TP to drops, collect via touch, TP back
     local function collectDrops()
         local char = PL.Character
         if not char then return end
-        local pivot = char:GetPivot()
-        local homePos = pivot.Position
-
-        -- Merge pending event positions + scanned workspace positions
-        local drops = findDropParts()
-        for _, pos in ipairs(pendingDrops) do
-            table.insert(drops, pos)
-        end
+        local homePos = char:GetPivot().Position
+        local drops = {}
+        pcall(function()
+            for _, desc in ipairs(workspace:GetDescendants()) do
+                if desc.Name == "CashDrop" and desc:IsA("BasePart") then
+                    local bag = desc:FindFirstChild("Bag")
+                    table.insert(drops, bag and bag.Position or desc.Position)
+                elseif desc.Name == "Bag" and desc:IsA("BasePart") and desc.Parent then
+                    table.insert(drops, desc.Position)
+                end
+            end
+        end)
+        for _, pos in ipairs(pendingDrops) do table.insert(drops, pos) end
         pendingDrops = {}
-
         if #drops == 0 then return end
-
         for _, pos in ipairs(drops) do
             char = PL.Character
             if not char then break end
             char:PivotTo(CFrame.new(pos))
             task.wait()
         end
-
-        -- TP back home
         char = PL.Character
-        if char then
-            char:PivotTo(CFrame.new(homePos))
-        end
+        if char then char:PivotTo(CFrame.new(homePos)) end
     end
 
-    local function setActive(val)
-        active = val
-        if active then tryHook() end
-        if not active and conn then
-            conn:Disconnect()
-            conn = nil
-        end
-    end
-
-    -- Collect every 30 seconds
-    task.spawn(function()
-        while _G.SellLemonsMain do
-            task.wait(30)
-            if active then
-                if not conn then tryHook() end
-                local ok, err = pcall(collectDrops)
-            end
-        end
+    table.insert(featureTicks, function(now)
+        if not active or now - lastRun < 30 then return end
+        lastRun = now
+        if not cashDropConn then tryHookCashDrop() end
+        pcall(collectDrops)
     end)
-
     _G.SL_AutoCashDrops = {
-        enable   = function() setActive(true) end,
-        disable  = function() setActive(false) end,
-        toggle   = function(val) if val == nil then setActive(not active) else setActive(val) end end,
+        enable  = function() active = true; tryHookCashDrop() end,
+        disable = function()
+            active = false
+            if cashDropConn then cashDropConn:Disconnect(); cashDropConn = nil end
+        end,
+        toggle = function(val)
+            if val == nil then val = not active end
+            active = val
+            if val then tryHookCashDrop() elseif cashDropConn then cashDropConn:Disconnect(); cashDropConn = nil end
+        end,
         isActive = function() return active end,
     }
 end
 
--- ─── Auto Phone ───────────────────────────────────────────────────────────────
+-- ─── Auto Phone ─────────────────────────────────────────────────────────────
 do
     local active = false
-    task.spawn(function()
-        while _G.SellLemonsMain do
-            task.wait(0.5)
-            if active and remotes then
-                pcall(function()
-                    local re = remotes:FindFirstChild("PhoneOffer")
-                    if re and re:IsA("RemoteEvent") then
-                        re:FireServer("Accept")
-                    end
-                end)
+    local lastRun = 0
+    table.insert(featureTicks, function(now)
+        if not active or not remotes or now - lastRun < 5 then return end
+        lastRun = now
+        pcall(function()
+            local re = remotes:FindFirstChild("PhoneOffer")
+            if re and re:IsA("RemoteEvent") then
+                re:FireServer("Accept")
             end
-        end
+        end)
     end)
     _G.SL_AutoPhone = {
         enable   = function() active = true end,
@@ -414,23 +438,20 @@ do
     }
 end
 
--- ─── Auto Powers ──────────────────────────────────────────────────────────────
+-- ─── Auto Powers ────────────────────────────────────────────────────────────
 do
     local active = false
-    local POWERS = {"Manage", "WalkSpeed", "UpgradeStack", "BuyNext", "ClickFruitValue"}
-    task.spawn(function()
-        while _G.SellLemonsMain do
-            task.wait(0.5)
-            if active and remotes then
-                pcall(function()
-                    local rf = findRemoteFunction(remotes, "UpgradePowerLevel")
-                    if not rf then return end
-                    for _, name in ipairs(POWERS) do
-                        pcall(rf.InvokeServer, rf, name)
-                    end
-                end)
+    local lastRun = 0
+    table.insert(featureTicks, function(now)
+        if not active or not remotes or now - lastRun < 10 then return end
+        lastRun = now
+        pcall(function()
+            local rf = findRemoteFunction(remotes, "UpgradePowerLevel")
+            if not rf then return end
+            for _, name in ipairs({"Manage", "WalkSpeed", "UpgradeStack", "BuyNext", "ClickFruitValue"}) do
+                pcall(rf.InvokeServer, rf, name)
             end
-        end
+        end)
     end)
     _G.SL_AutoPowers = {
         enable   = function() active = true end,
@@ -448,13 +469,11 @@ do
     local function findFruits()
         local targets = {}
         pcall(function()
-            for _, desc in workspace:GetDescendants() do
+            for _, desc in ipairs(workspace:GetDescendants()) do
                 if desc:IsA("ClickDetector") then
                     local part = desc.Parent
-                    if part and part:IsA("BasePart") then
-                        if not part:FindFirstChildWhichIsA("TextLabel", true) then
-                            table.insert(targets, {pos = part.Position, cd = desc})
-                        end
+                    if part and part:IsA("BasePart") and part.Size.Magnitude < 10 then
+                        table.insert(targets, {pos = part.Position, cd = desc})
                     end
                 end
             end
@@ -478,6 +497,7 @@ do
                             char:PivotTo(CFrame.new(t.pos))
                             task.wait()
                             pcall(fireclickdetector, t.cd)
+                            task.wait()
                         end
                         char = PL.Character
                         if char then char:PivotTo(CFrame.new(homePos)) end
@@ -494,31 +514,43 @@ do
     }
 end
 
--- ─── Anti-AFK (always on) ────────────────────────────────────────────────────
-PL.Idled:Connect(function()
-    VirtualUser:ClickButton2(Vector2.new())
-end)
-
--- ─── Auto Rebirth (configurable cooldown between attempts) ──────────────────
+-- ─── Auto Rebirth ───────────────────────────────────────────────────────────
 do
     local active = false
+    local rebirthCD = 240
+    local lastRebirthAttempt = tick() - rebirthCD
     local inFlight = false
-    local rebirthCD = 240 -- seconds, default 4 minutes
-    local lastAttempt = tick() - rebirthCD -- fire immediately on first enable
-    task.spawn(function()
-        while _G.SellLemonsMain do
-            task.wait(1)
-            if active and remotes and not inFlight and tick() - lastAttempt >= rebirthCD then
-                local rf = findRemoteFunction(remotes, "Rebirth")
-                if rf then
-                    inFlight = true
-                    lastAttempt = tick()
-                    task.spawn(function()
-                        pcall(rf.InvokeServer, rf)
-                        inFlight = false
-                    end)
-                end
-            end
+    local lastRun = 0
+    table.insert(featureTicks, function(now)
+        if not active or not remotes or inFlight or now - lastRun < 5 then return end
+        lastRun = now
+        if tick() - lastRebirthAttempt < rebirthCD then return end
+        local rf = findRemoteFunction(remotes, "Rebirth")
+        if rf then
+            inFlight = true
+            lastRebirthAttempt = tick()
+            task.spawn(function()
+                pcall(rf.InvokeServer, rf)
+                inFlight = false
+                task.wait()
+                task.wait()
+                task.wait()
+                task.wait()
+                pcall(function()
+                    for _, item in ipairs(CS:GetTagged("Tycoon.Purchase")) do
+                        if item:IsDescendantOf(myTycoon) and not item:GetAttribute("Purchased") then
+                            local prf = findRemoteFunction(item, "Purchase")
+                            if prf then task.spawn(pcall, prf.InvokeServer, prf, false) end
+                        end
+                    end
+                    for _, item in ipairs(CS:GetTagged("Tycoon.Purchasable")) do
+                        if item:IsDescendantOf(myTycoon) and not item:GetAttribute("Purchased") then
+                            local prf = findRemoteFunction(item, "Purchase")
+                            if prf then task.spawn(pcall, prf.InvokeServer, prf, false) end
+                        end
+                    end
+                end)
+            end)
         end
     end)
     _G.SL_AutoRebirth = {
@@ -526,28 +558,26 @@ do
         disable  = function() active = false end,
         toggle   = function(val) if val == nil then active = not active else active = val end end,
         isActive = function() return active end,
-        setDelay = function(minutes) rebirthCD = minutes * 60; lastAttempt = tick() - rebirthCD end,
+        setDelay = function(minutes) rebirthCD = minutes * 60; lastRebirthAttempt = tick() - rebirthCD end,
         getDelay = function() return rebirthCD / 60 end,
     }
 end
 
--- ─── Auto Evolve (WIP: server handler unresponsive) ──────────────────────────
+-- ─── Auto Evolve ────────────────────────────────────────────────────────────
 do
     local active = false
     local inFlight = false
-    task.spawn(function()
-        while _G.SellLemonsMain do
-            task.wait(0.5)
-            if active and remotes and not inFlight then
-                local rf = findRemoteFunction(remotes, "Evolve")
-                if rf then
-                    inFlight = true
-                    task.spawn(function()
-                        pcall(rf.InvokeServer, rf)
-                        inFlight = false
-                    end)
-                end
-            end
+    local lastRun = 0
+    table.insert(featureTicks, function(now)
+        if not active or not remotes or inFlight or now - lastRun < 5 then return end
+        lastRun = now
+        local rf = findRemoteFunction(remotes, "Evolve")
+        if rf then
+            inFlight = true
+            task.spawn(function()
+                pcall(rf.InvokeServer, rf)
+                inFlight = false
+            end)
         end
     end)
     _G.SL_AutoEvolve = {
@@ -558,23 +588,21 @@ do
     }
 end
 
--- ─── Auto Ascend (WIP: server handler unresponsive) ──────────────────────────
+-- ─── Auto Ascend ────────────────────────────────────────────────────────────
 do
     local active = false
     local inFlight = false
-    task.spawn(function()
-        while _G.SellLemonsMain do
-            task.wait(0.5)
-            if active and remotes and not inFlight then
-                local rf = findRemoteFunction(remotes, "Ascend")
-                if rf then
-                    inFlight = true
-                    task.spawn(function()
-                        pcall(rf.InvokeServer, rf)
-                        inFlight = false
-                    end)
-                end
-            end
+    local lastRun = 0
+    table.insert(featureTicks, function(now)
+        if not active or not remotes or inFlight or now - lastRun < 5 then return end
+        lastRun = now
+        local rf = findRemoteFunction(remotes, "Ascend")
+        if rf then
+            inFlight = true
+            task.spawn(function()
+                pcall(rf.InvokeServer, rf)
+                inFlight = false
+            end)
         end
     end)
     _G.SL_AutoAscend = {
@@ -584,6 +612,17 @@ do
         isActive = function() return active end,
     }
 end
+
+-- ─── Single master loop (1 coroutine, calls all features) ───────────────────
+task.spawn(function()
+    while _G.SellLemonsMain do
+        local now = tick()
+        for _, fn in ipairs(featureTicks) do
+            pcall(fn, now)
+        end
+        task.wait(0.5)
+    end
+end)
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- GUI
@@ -612,8 +651,8 @@ local C_BSTR_OFF = Color3.fromRGB(180, 30, 30)
 local W      = 299
 local HALF_W = 141
 local TAB_W  = math.floor(W / 2)
-local PANEL_H_CONTROLS = 253
-local PANEL_H_PRESTIGE = 241
+local PANEL_H_CONTROLS = 227
+local PANEL_H_PRESTIGE = 171
 
 -- ─── Style helpers ────────────────────────────────────────────────────────────
 local function mkGrad(parent, c1, c2, rot)
@@ -663,8 +702,8 @@ mkStroke(panelBg, C_STROKE, 1.5, 0)
 
 if savedState.guiX and workspace.CurrentCamera then
     local vp = workspace.CurrentCamera.ViewportSize
-    local clampedX = math.clamp(savedState.guiX, 0, math.max(0, vp.X - W))
-    local clampedY = math.clamp(savedState.guiY, 0, math.max(0, vp.Y - 50))
+    local clampedX = math.min(math.max(savedState.guiX, 0), math.max(0, vp.X - W))
+    local clampedY = math.min(math.max(savedState.guiY, 0), math.max(0, vp.Y - 50))
     panel.Position = UDim2.new(0, clampedX, 0, clampedY)
 else
     panel.Position = UDim2.new(0.5, -math.floor(W / 2), 0, 12)
@@ -726,7 +765,7 @@ local function setTooltip(btn, text)
         local ap = btn.AbsolutePosition
         local as = btn.AbsoluteSize
         local vp = workspace.CurrentCamera.ViewportSize
-        local tx = math.clamp(ap.X, 4, vp.X - 185)
+        local tx = math.min(math.max(ap.X, 4), vp.X - 185)
         local ty = ap.Y + as.Y + 4
         if ty + 30 > vp.Y then ty = ap.Y - 34 end
         ttFrame.Position = UDim2.new(0, tx, 0, ty)
@@ -983,8 +1022,8 @@ for i, opt in ipairs(UPG_OPTIONS) do
     btn.Font = Enum.Font.GothamBold
     btn.BorderSizePixel = 0
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-    local st = mkStroke(btn, C_DIV, 1, 0.5)
-    table.insert(upgBtns, {btn = btn, value = opt.value, stroke = st})
+    local bst = mkStroke(btn, C_DIV, 1, 0.5)
+    table.insert(upgBtns, {btn = btn, value = opt.value, stroke = bst})
     btn.MouseButton1Click:Connect(function()
         upgSelected = opt.value
         refreshUpgBtns()
@@ -1000,84 +1039,13 @@ refreshUpgBtns()
 -- Apply saved count to feature
 if _G.SL_AutoUpgrade then _G.SL_AutoUpgrade.setCount(upgSelected) end
 
--- Buildings multi-select dropdown (y=58)
-local bldgDropBtn = Instance.new("TextButton", controlsFrame)
-bldgDropBtn.Size = UDim2.new(0, W - 16, 0, 20)
-bldgDropBtn.Position = UDim2.new(0, 8, 0, 58)
-bldgDropBtn.BackgroundColor3 = C_TAB_OFF
-bldgDropBtn.TextColor3 = C_TXT_OFF
-bldgDropBtn.Text = "Buildings: " .. #ALL_BUILDINGS .. "/" .. #ALL_BUILDINGS .. " v"
-bldgDropBtn.TextSize = 10
-bldgDropBtn.Font = Enum.Font.GothamBold
-bldgDropBtn.BorderSizePixel = 0
-Instance.new("UICorner", bldgDropBtn).CornerRadius = UDim.new(0, 4)
-mkStroke(bldgDropBtn, C_DIV, 1, 0.5)
-setTooltip(bldgDropBtn, "Select which buildings to auto-upgrade")
 
-local bldgDropdown = Instance.new("Frame", controlsFrame)
-bldgDropdown.Size = UDim2.new(0, W - 16, 0, #ALL_BUILDINGS * 22 + 4)
-bldgDropdown.Position = UDim2.new(0, 8, 0, 80)
-bldgDropdown.BackgroundColor3 = Color3.fromRGB(12, 4, 24)
-bldgDropdown.BorderSizePixel = 0
-bldgDropdown.ZIndex = 10
-bldgDropdown.Visible = false
-Instance.new("UICorner", bldgDropdown).CornerRadius = UDim.new(0, 4)
-mkStroke(bldgDropdown, C_STROKE, 1, 0.2)
-
-local bldgRows = {}
-local function refreshBldgBtn()
-    local api = _G.SL_AutoUpgrade
-    if not api then return end
-    local buildings = api.getBuildings()
-    local count = 0
-    for _, name in ipairs(ALL_BUILDINGS) do
-        if buildings[name] then count = count + 1 end
-    end
-    bldgDropBtn.Text = "Buildings: " .. count .. "/" .. #ALL_BUILDINGS .. " v"
-end
-
-for idx, name in ipairs(ALL_BUILDINGS) do
-    local bldgRow = Instance.new("TextButton", bldgDropdown)
-    bldgRow.Size = UDim2.new(1, -8, 0, 20)
-    bldgRow.Position = UDim2.new(0, 4, 0, 2 + (idx - 1) * 22)
-    bldgRow.BackgroundColor3 = C_TAB_ON
-    bldgRow.TextColor3 = C_BTXT_ON
-    bldgRow.Text = BUILDING_LABELS[name] or name
-    bldgRow.TextSize = 10
-    bldgRow.Font = Enum.Font.GothamBold
-    bldgRow.BorderSizePixel = 0
-    bldgRow.ZIndex = 11
-    Instance.new("UICorner", bldgRow).CornerRadius = UDim.new(0, 3)
-    bldgRows[name] = bldgRow
-
-    bldgRow.MouseButton1Click:Connect(function()
-        local api = _G.SL_AutoUpgrade
-        if not api then return end
-        local buildings = api.getBuildings()
-        api.setBuilding(name, not buildings[name])
-        local on = api.getBuildings()[name]
-        bldgRow.BackgroundColor3 = on and C_TAB_ON or C_TAB_OFF
-        bldgRow.TextColor3 = on and C_BTXT_ON or Color3.fromRGB(150, 120, 170)
-        refreshBldgBtn()
-        local state = loadState()
-        state.buildings = {}
-        for _, bn in ipairs(ALL_BUILDINGS) do
-            state.buildings[bn] = api.getBuildings()[bn]
-        end
-        saveState(state)
-    end)
-end
-
-bldgDropBtn.MouseButton1Click:Connect(function()
-    bldgDropdown.Visible = not bldgDropdown.Visible
-end)
-
--- Rows 1-3 shifted down for selector + buildings rows
+-- Rows 1-3 shifted down for selector row
 for i = 3, #CTRL_DEFS do
     local col = (i - 1) % 2
     local row = math.floor((i - 1) / 2)
     local x = col == 0 and 8 or 150
-    local y = 6 + row * 32 + 48
+    local y = 6 + row * 32 + 22
     makeToggleBtn(controlsFrame, CTRL_DEFS[i], x, HALF_W, y)
 end
 
@@ -1138,7 +1106,7 @@ do
     mkStroke(knob, Color3.fromRGB(220, 200, 255), 1.5, 0.15)
 
     local function setSliderValue(minutes)
-        minutes = math.clamp(math.floor(minutes + 0.5), MIN_MIN, MAX_MIN)
+        minutes = math.min(math.max(math.floor(minutes + 0.5), MIN_MIN), MAX_MIN)
         local frac = (minutes - MIN_MIN) / (MAX_MIN - MIN_MIN)
         fill.Size = UDim2.fromScale(frac, 1)
         knob.Position = UDim2.new(frac, 0, 0.5, 0)
@@ -1151,7 +1119,7 @@ do
     local function updateFromInput(inputPos)
         local absX = track.AbsolutePosition.X
         local absW = track.AbsoluteSize.X
-        local rel = math.clamp((inputPos.X - absX) / absW, 0, 1)
+        local rel = math.min(math.max((inputPos.X - absX) / absW, 0), 1)
         local minutes = math.floor(MIN_MIN + rel * (MAX_MIN - MIN_MIN) + 0.5)
         setSliderValue(minutes)
         local state = loadState()
@@ -1180,22 +1148,6 @@ do
     setSliderValue(savedMin)
 end
 
-local function mkStatusLabel(parent, text, y)
-    local lbl = Instance.new("TextLabel", parent)
-    lbl.Size = UDim2.new(0, W - 16, 0, 18)
-    lbl.Position = UDim2.new(0, 8, 0, y)
-    lbl.BackgroundTransparency = 1
-    lbl.TextColor3 = Color3.fromRGB(215, 190, 255)
-    lbl.TextSize   = 11
-    lbl.Font       = Enum.Font.Gotham
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.Text = text
-    return lbl
-end
-
-local lblRebirths  = mkStatusLabel(prestigeFrame, "Rebirths: --",  110)
-local lblEvolution = mkStatusLabel(prestigeFrame, "Evolution: --", 130)
-local lblAscension = mkStatusLabel(prestigeFrame, "Ascension: --", 150)
 
 -- ─── State restoration ───────────────────────────────────────────────────────
 for _, def in ipairs(CTRL_DEFS) do
@@ -1210,27 +1162,11 @@ for _, def in ipairs(PRESTIGE_DEFS) do
         if api then pcall(function() api.enable() end) end
     end
 end
--- Restore building selections
-if savedState.buildings and _G.SL_AutoUpgrade then
-    for _, name in ipairs(ALL_BUILDINGS) do
-        if savedState.buildings[name] ~= nil then
-            _G.SL_AutoUpgrade.setBuilding(name, savedState.buildings[name])
-        end
-    end
-    for name, row in pairs(bldgRows) do
-        local api = _G.SL_AutoUpgrade
-        local on = api and api.getBuildings()[name]
-        row.BackgroundColor3 = on and C_TAB_ON or C_TAB_OFF
-        row.TextColor3 = on and C_BTXT_ON or Color3.fromRGB(150, 120, 170)
-    end
-    refreshBldgBtn()
-end
 -- Refresh all buttons after state restore
 for _, fn in ipairs(refreshFns) do pcall(fn) end
 
 -- ─── Tab switching ────────────────────────────────────────────────────────────
 local function showTab(name)
-    if bldgDropdown then bldgDropdown.Visible = false end
     controlsFrame.Visible = (name == "controls")
     prestigeFrame.Visible = (name == "prestige")
     local function setTab(btn, on)
@@ -1251,11 +1187,5 @@ task.spawn(function()
     while _G.SellLemonsMain do
         task.wait(1)
         for _, fn in ipairs(refreshFns) do pcall(fn) end
-        pcall(function()
-            lblRebirths.Text  = "Rebirths: "  .. tostring(getTycoonValue("Rebirths") or 0)
-            lblEvolution.Text = "Evolution: " .. tostring(getTycoonValue("Evolution") or 0)
-            lblAscension.Text = "Ascension: " .. tostring(getTycoonValue("Ascension") or 0)
-        end)
     end
 end)
-
