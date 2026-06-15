@@ -12,6 +12,7 @@ local GAMES = {
     [92416421522960]  = { name = "Slime RNG",    file = "slime_rng.lua" },
     [79268393072444]  = { name = "Sell Lemons",   file = "sell_lemons.lua" },
     [110947318876182] = { name = "Dropper RNG",   file = "dropper_rng.lua" },
+    [138408007583179] = { name = "Clicker Simulator", file = "clicker_simulator.lua" },
 }
 
 -- ── Services ─────────────────────────────────────────────────────────────────
